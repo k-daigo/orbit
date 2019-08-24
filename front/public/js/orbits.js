@@ -868,6 +868,8 @@ orbits.Orbit.prototype.getPosition = function() {
  * @returns {google.maps.LatLng}
  */
 orbits.Orbit.prototype.getLatLng = function() {
+    // console.debug(`orbits.Orbit.prototype.getLatLng this.latitude=${this.latitude} this.longitude=${this.longitude}`)
+    // console.debug(`new google.maps.LatLng(this.latitude, this.longitude)=${new google.maps.LatLng(this.latitude, this.longitude)}`)
     return new google.maps.LatLng(this.latitude, this.longitude);
 };
 
