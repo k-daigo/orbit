@@ -28,17 +28,23 @@ export default {
   created () {
   },
 
-  mounted() {
+  async mounted() {
+    await this.loadTle();
+    this.viewSat();
   },
   
   methods: {
-    async onTleClick() {
-      this.orgTle = await this.getTle();
+    onTleClick() {
+      this.loadTle();
+    },
+
+    async loadTle() {
+      this.orgTle = await this.getTleFromNorad();
       // console.debug(`this.orgTle=${this.orgTle}`);
       this.orbitMap = this.analyzeTle(this.orgTle);
     },
 
-    async getTle() {
+    async getTleFromNorad() {
       const that = this;
       return new Promise(resolve => {
         axios
@@ -52,17 +58,11 @@ export default {
     },
 
     onGetLonLatClick() {
-      // console.debug(this.orbitMap[this.target])
-      // console.debug(this.orbitMap[this.target].tle)
+      this.viewSat();
+    },
 
-      // const tle = "CALSPHERE 1             \n"
-      //           + "1 00900U 64063C   19235.95092944  .00000188  00000-0  19216-3 0  9999\n"
-      //           + "2 00900  90.1498  23.6225 0025889 230.1045 248.0241 13.73264408729488"
-
-      // var TLE_Array = orbits.util.parseTLE(this.orgTle);
-    
+    viewSat() {
       var myTLE = new orbits.TLE(this.orbitMap[this.target].tle);
-      // var myTLE = new orbits.TLE(TLE_Array[0].text);
       var myOrbit = new orbits.Orbit(myTLE);
       var myMap = new google.maps.Map(document.getElementById("map"));
       var mySat = new orbits.Satellite({ map: myMap, tle: myTLE});
@@ -125,14 +125,11 @@ export default {
         
         // Line1
         const line1 = tleArr[linePos1];
-        // console.debug(`line1=${line1}`);
         const line1List = line1.split(" ");
 
         // Line2
         const line2 = tleArr[linePos2];
-        // console.debug(`line2=${line2}`);
         const line2List = line2.split(" ");
-        // console.debug(`line2List=${line2List}`);
         data["catalogNo"] = line2List[1];
         data["omega"] = line2List[3];         // 昇交点赤経（Right Ascention of Ascending Node）
         data["i"] = line2List[2];             // 軌道傾斜角
@@ -142,11 +139,7 @@ export default {
         data["meanAnomaly"] = line2List[6];   // 平均近点角（Mean Anomaly）
         data["meanMotion"] = line2List[7];    // 平均運動（Mean Motion）
 
-        // console.debug(satName)
-        // console.debug(tleArr[linePos1])
-        // console.debug(tleArr[linePos2])
         // TLEデータを保持
-        //orbitMap[satName] = data;
         orbitMap[satName] = {
             line1: tleArr[linePos1],
             line2: tleArr[linePos2],
