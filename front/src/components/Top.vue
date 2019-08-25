@@ -1,6 +1,17 @@
 <template>
   <div>
-    Top<br>
+    <div class="logo">
+      <img src="/images/logo.png">
+    </div>
+
+    <div class="menu" v-on:mouseover="onMenuMouseover" v-on:mouseleave="onMuneMouseleave">
+      <div v-show="meneItem">
+        リアルタイム
+        <hr>
+        TLE再取得
+      </div>
+    </div>
+
     <button v-on:click="onTleClick">TLEを取得</button><br><br>
     <input v-model="target"><br><br>
     <button v-on:click="onGetLonLatClick">現在の位置情報を表示</button><br><br>
@@ -13,6 +24,8 @@ import axios from 'axios';
 axios.defaults.headers.common['Content-Type'] = 'application/x-www-form-urlencoded'
 axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 
+import anime from 'animejs'
+
 export default {
   components: {
   },
@@ -22,6 +35,8 @@ export default {
       orgTle: "",
       orbitMap: {},
       target: "ISS (ZARYA)",
+      meneItem: false,
+      saveMenuWidth: "",
     }
   },
 
@@ -34,6 +49,32 @@ export default {
   },
   
   methods: {
+    onMenuMouseover() {
+      anime({
+        targets: ['.menu'],
+        width: '200px',
+        delay: 0,
+        direction: 'normal',
+        easing: 'easeOutElastic(0.1, 0.9)',
+        duration: 200,
+        loop: false
+      });
+      this.meneItem = true;
+    },
+
+    onMuneMouseleave() {
+      anime({
+        targets: ['.menu'],
+        width: '50px',
+        delay: 0,
+        direction: 'normal',
+        easing: 'easeOutElastic(0.1, 0.9)',
+        duration: 200,
+        loop: false
+      });
+      this.meneItem = false;
+    },
+
     onTleClick() {
       this.loadTle();
     },
