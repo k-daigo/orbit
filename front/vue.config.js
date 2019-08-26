@@ -4,7 +4,7 @@
 
 module.exports = {
     devServer: {
-        port: 19876,
+        port: 29876,
         disableHostCheck: true,
         contentBase: './public',
 

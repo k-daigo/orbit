@@ -5,10 +5,25 @@
     </div>
 
     <div class="menu" v-on:mouseover="onMenuMouseover" v-on:mouseleave="onMuneMouseleave">
-      <div v-show="meneItem">
-        リアルタイム
-        <hr>
-        TLE再取得
+      <div class="menuItem" v-show="meneItem">
+        <div class="dropdown">
+          <a href="javascript:void(0)" class="white" v-on:click="onSelSatClick">{{target}}</a>
+          <div id="myDropdown" class="dropdown-content">
+            <input type="text" placeholder="衛星名" id="satSearchText" v-on:keyup="onSatSearchKeyup">
+            <a href="javascript:void(0)">About</a>
+            <a href="javascript:void(0)">Base</a>
+            <a href="javascript:void(0)">Blog</a>
+            <a href="javascript:void(0)">Contact</a>
+            <a href="javascript:void(0)">Custom</a>
+            <a href="javascript:void(0)">Support</a>
+            <a href="javascript:void(0)">Tools</a>
+          </div>
+        </div>
+        <br>
+
+        <a href="javascript:void(0)" class="white" v-on:click="onRealtimeClick">リアルタイム</a>
+        <hr class="menuSep">
+        <a href="javascript:void(0)" class="white" v-on:click="loadTle">TLE再取得</a>
       </div>
     </div>
 
@@ -25,6 +40,9 @@ axios.defaults.headers.common['Content-Type'] = 'application/x-www-form-urlencod
 axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 
 import anime from 'animejs'
+
+/* When the user clicks on the button,
+toggle between hiding and showing the dropdown content */
 
 export default {
   components: {
@@ -63,16 +81,16 @@ export default {
     },
 
     onMuneMouseleave() {
-      anime({
-        targets: ['.menu'],
-        width: '50px',
-        delay: 0,
-        direction: 'normal',
-        easing: 'easeOutElastic(0.1, 0.9)',
-        duration: 200,
-        loop: false
-      });
-      this.meneItem = false;
+      // anime({
+      //   targets: ['.menu'],
+      //   width: '50px',
+      //   delay: 0,
+      //   direction: 'normal',
+      //   easing: 'easeOutElastic(0.1, 0.9)',
+      //   duration: 200,
+      //   loop: false
+      // });
+      // this.meneItem = false;
     },
 
     onTleClick() {
@@ -190,7 +208,31 @@ export default {
         pos += 3;
       }
       return orbitMap
-    }
+    },
+
+    onRealtimeClick(){
+      
+    },
+
+    onSelSatClick() {
+      document.getElementById("myDropdown").classList.toggle("show");
+    },
+
+    onSatSearchKeyup() {
+      const input = document.getElementById("satSearchText");
+      const filter = input.value.toUpperCase();
+      const div = document.getElementById("myDropdown");
+      const a = div.getElementsByTagName("a");
+      for (let i = 0; i < a.length; i++) {
+        const txtValue = a[i].textContent || a[i].innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+          a[i].style.display = "";
+        } else {
+          a[i].style.display = "none";
+        }
+      }
+    },
   },
+
 }
 </script>
