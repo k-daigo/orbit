@@ -11,7 +11,8 @@
           <div id="selSatArea" class="dropdown-content">
             <input type="text" placeholder="衛星名" id="satSearchText" v-on:keyup="onSatSearchKeyup">
             <div id="selSatList" class="sal-sat-list">
-              <a href="javascript:void(0)" v-for="(val, satName) in orbitMap" v-bind:key="satName">
+              <a href="javascript:void(0)" v-for="(val, satName) in orbitMap" v-bind:key="satName"
+                v-on:click="selSatClick(satName)">
                 {{satName}}
               </a>
             </div>
@@ -25,9 +26,12 @@
       </div>
     </div>
 
-    <button v-on:click="onTleClick">TLEを取得</button><br><br>
-    <input v-model="target"><br><br>
-    <button v-on:click="onGetLonLatClick">現在の位置情報を表示</button><br><br>
+    <div class="sat-info">
+      {{target}}
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      {{clock}}
+    </div>
+
     <div id="map" class="map"></div>
   </div>
 </template>
@@ -37,6 +41,7 @@ import axios from 'axios';
 axios.defaults.headers.common['Content-Type'] = 'application/x-www-form-urlencoded'
 axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 import anime from 'animejs'
+import moment from 'moment'
 
 // 衛星名のドロップダウン外のクリックでドロップダウンを非表示にする
 $(document).on('click touchend', function(event) {
@@ -54,6 +59,8 @@ export default {
       orgTle: "",
       orbitMap: {},
       target: "ISS (ZARYA)",
+      clock: "",
+      dtIntervalId: "",
       meneItem: false,
       saveMenuWidth: "",
     }
@@ -69,9 +76,18 @@ export default {
 
     // 衛星軌道を地図上に表示
     this.viewSat();
+
+    this.dtIntervalId = setInterval(() => {
+      this.refreshClcok();
+    }, 1000)
   },
   
   methods: {
+
+    refreshClcok() {
+      this.clock = moment(new Date).format('YYYY/MM/DD HH:mm:ss');
+    },
+
     onMenuMouseover() {
       anime({
         targets: ['.menu'],
@@ -147,7 +163,6 @@ export default {
         dt.setMinutes(dt.getMinutes() + 1);
         calSat.setDate(dt);
         calSat.refresh()
-        // console.debug(`calSat.position=${calSat.position}`)
         points.push(calSat.position);
       }
 
@@ -217,6 +232,16 @@ export default {
 
     onRealtimeClick(){
       
+    },
+
+    selSatClick(satName) {
+      this.target = satName;
+
+      // ドロップダウンを非表示にする
+      $("#selSatArea").removeClass("show");
+
+      // 軌道を描画
+      this.viewSat();
     },
 
     onSelSatClick() {

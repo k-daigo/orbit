@@ -122,3 +122,8 @@ a.white:visited {
     position: relative;
     text-align: left;
 }
+
+.sat-info {
+    font-family: Impact, 'メイリオ', 'Arial Narrow Bold', sans-serif !important;
+    font-size: 20px;
+}
