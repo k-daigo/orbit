@@ -70,7 +70,7 @@ a.white:visited {
 /* The search field */
 #satSearchText {
   box-sizing: border-box;
-  background-image: url('icon_search.png');
+  background-image: url('/images/icon_search.png');
   background-position: 14px 12px;
   background-repeat: no-repeat;
   font-size: 16px;
@@ -120,4 +120,5 @@ a.white:visited {
     height: 500px;
     overflow-y: scroll;
     position: relative;
+    text-align: left;
 }
