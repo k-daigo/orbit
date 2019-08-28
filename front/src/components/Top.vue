@@ -8,7 +8,7 @@
       <div class="menuItem" v-show="meneItem">
         <div class="dropdown">
           <a href="javascript:void(0)" class="white" v-on:click="onSelSatClick">{{target}}</a>
-          <div id="myDropdown" class="dropdown-content">
+          <div id="selSatArea" class="dropdown-content">
             <input type="text" placeholder="衛星名" id="satSearchText" v-on:keyup="onSatSearchKeyup">
             <a href="javascript:void(0)">About</a>
             <a href="javascript:void(0)">Base</a>
@@ -41,8 +41,11 @@ axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 
 import anime from 'animejs'
 
-/* When the user clicks on the button,
-toggle between hiding and showing the dropdown content */
+$(document).on('click touchend', function(event) {
+  if (!$(event.target).closest('.dropdown').length) {
+    $("#selSatArea").removeClass("show");
+  }
+});
 
 export default {
   components: {
@@ -64,6 +67,7 @@ export default {
   async mounted() {
     await this.loadTle();
     this.viewSat();
+    console.info(`TLE 取得完了`);
   },
   
   methods: {
@@ -81,16 +85,16 @@ export default {
     },
 
     onMuneMouseleave() {
-      // anime({
-      //   targets: ['.menu'],
-      //   width: '50px',
-      //   delay: 0,
-      //   direction: 'normal',
-      //   easing: 'easeOutElastic(0.1, 0.9)',
-      //   duration: 200,
-      //   loop: false
-      // });
-      // this.meneItem = false;
+      anime({
+        targets: ['.menu'],
+        width: '50px',
+        delay: 0,
+        direction: 'normal',
+        easing: 'easeOutElastic(0.1, 0.9)',
+        duration: 200,
+        loop: false
+      });
+      this.meneItem = false;
     },
 
     onTleClick() {
@@ -110,7 +114,7 @@ export default {
           // .get('/NORAD/elements/active.txt')
           .get('/tle.txt')
           .then(function(res) {
-            console.debug(`getTle ret`);
+            console.info(`TLE 取得完了`);
             resolve(res.data);
           });
       });
@@ -125,7 +129,6 @@ export default {
       var myOrbit = new orbits.Orbit(myTLE);
       var myMap = new google.maps.Map(document.getElementById("map"));
       var mySat = new orbits.Satellite({ map: myMap, tle: myTLE});
-      console.debug(`111-3 mySat.position=${mySat.position}`)
       var options = {
         center: mySat.position, // 地図の場所
         mapTypeId: google.maps.MapTypeId.ROADMAP,               // 地図の種類
@@ -215,13 +218,13 @@ export default {
     },
 
     onSelSatClick() {
-      document.getElementById("myDropdown").classList.toggle("show");
+      document.getElementById("selSatArea").classList.toggle("show");
     },
 
     onSatSearchKeyup() {
       const input = document.getElementById("satSearchText");
       const filter = input.value.toUpperCase();
-      const div = document.getElementById("myDropdown");
+      const div = document.getElementById("selSatArea");
       const a = div.getElementsByTagName("a");
       for (let i = 0; i < a.length; i++) {
         const txtValue = a[i].textContent || a[i].innerText;

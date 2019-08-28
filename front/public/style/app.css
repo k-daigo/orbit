@@ -2,7 +2,7 @@
 body {
     margin: 0px;
     background-color: #FFFEF3;
-    font-family: Impact, 'メイリオ', 'Arial Narrow Bold', sans-serif;
+    font-family: Impact, 'メイリオ', 'Arial Narrow Bold', sans-serif !important;
 }
 
 a.white:link {
@@ -36,6 +36,10 @@ a.white:visited {
     color: white;
     z-index: 10010;
     margin-top: 50px;
+}
+
+.menuItem a{
+    margin-top: 10px;
 }
 
 .menuSep{
