@@ -102,16 +102,16 @@ export default {
     },
 
     onMuneMouseleave() {
-      // anime({
-      //   targets: ['.menu'],
-      //   width: '50px',
-      //   delay: 0,
-      //   direction: 'normal',
-      //   easing: 'easeOutElastic(0.1, 0.9)',
-      //   duration: 200,
-      //   loop: false
-      // });
-      // this.meneItem = false;
+      anime({
+        targets: ['.menu'],
+        width: '50px',
+        delay: 0,
+        direction: 'normal',
+        easing: 'easeOutElastic(0.1, 0.9)',
+        duration: 200,
+        loop: false
+      });
+      this.meneItem = false;
     },
 
     onTleClick() {
