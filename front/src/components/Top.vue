@@ -20,6 +20,7 @@
         </div>
         <br>
 
+        <hr class="menuSep">
         <a href="javascript:void(0)" class="white" v-on:click="onRealtimeClick">リアルタイム</a>
         <hr class="menuSep">
         <a href="javascript:void(0)" class="white" v-on:click="loadTle">TLE再取得</a>
@@ -77,13 +78,20 @@ export default {
     // 衛星軌道を地図上に表示
     this.viewSat();
 
-    this.dtIntervalId = setInterval(() => {
-      this.refreshClcok();
-    }, 1000)
+    // 初期表示はリアルタイム
+    this.runRealtimeClock();
   },
   
   methods: {
 
+    // 時刻のリアルタイム更新
+    runRealtimeClock() {
+      this.dtIntervalId = setInterval(() => {
+        this.refreshClcok();
+      }, 1000)
+    },
+
+    // 時刻更新
     refreshClcok() {
       this.clock = moment(new Date).format('YYYY/MM/DD HH:mm:ss');
     },
@@ -160,10 +168,23 @@ export default {
       let dt = new Date();
       const points = [];
       for(let ii = 0; ii < 200; ii++){
-        dt.setMinutes(dt.getMinutes() + 1);
         calSat.setDate(dt);
         calSat.refresh()
         points.push(calSat.position);
+
+        if(ii % 10 == 0) {
+          var markerOptions = {
+            map: gmap,
+            position: calSat.position,
+                  icon : 'http://chart.apis.google.com/chart?'
+                                + 'chst=d_text_outline'
+                                + '&chld=000000|10|h|ffffff|_|'
+                                + moment(dt).format('H:mm:ss')};
+          new google.maps.Marker(markerOptions);
+        }
+
+        // 次の軌跡は1分後の位置
+        dt.setMinutes(dt.getMinutes() + 1);
       }
 
       const area = new google.maps.Polyline({
