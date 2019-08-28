@@ -10,13 +10,11 @@
           <a href="javascript:void(0)" class="white" v-on:click="onSelSatClick">{{target}}</a>
           <div id="selSatArea" class="dropdown-content">
             <input type="text" placeholder="衛星名" id="satSearchText" v-on:keyup="onSatSearchKeyup">
-            <a href="javascript:void(0)">About</a>
-            <a href="javascript:void(0)">Base</a>
-            <a href="javascript:void(0)">Blog</a>
-            <a href="javascript:void(0)">Contact</a>
-            <a href="javascript:void(0)">Custom</a>
-            <a href="javascript:void(0)">Support</a>
-            <a href="javascript:void(0)">Tools</a>
+            <div id="selSatList" class="sal-sat-list">
+              <a href="javascript:void(0)" v-for="(val, satName) in orbitMap" v-bind:key="satName">
+                {{satName}}
+              </a>
+            </div>
           </div>
         </div>
         <br>
@@ -38,9 +36,9 @@
 import axios from 'axios';
 axios.defaults.headers.common['Content-Type'] = 'application/x-www-form-urlencoded'
 axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
-
 import anime from 'animejs'
 
+// 衛星名のドロップダウン外のクリックでドロップダウンを非表示にする
 $(document).on('click touchend', function(event) {
   if (!$(event.target).closest('.dropdown').length) {
     $("#selSatArea").removeClass("show");
@@ -65,9 +63,12 @@ export default {
   },
 
   async mounted() {
+
+    // TLEを取得
     await this.loadTle();
+
+    // 衛星軌道を地図上に表示
     this.viewSat();
-    console.info(`TLE 取得完了`);
   },
   
   methods: {
@@ -85,26 +86,27 @@ export default {
     },
 
     onMuneMouseleave() {
-      anime({
-        targets: ['.menu'],
-        width: '50px',
-        delay: 0,
-        direction: 'normal',
-        easing: 'easeOutElastic(0.1, 0.9)',
-        duration: 200,
-        loop: false
-      });
-      this.meneItem = false;
+      // anime({
+      //   targets: ['.menu'],
+      //   width: '50px',
+      //   delay: 0,
+      //   direction: 'normal',
+      //   easing: 'easeOutElastic(0.1, 0.9)',
+      //   duration: 200,
+      //   loop: false
+      // });
+      // this.meneItem = false;
     },
 
     onTleClick() {
       this.loadTle();
     },
 
+    // TLE取得
     async loadTle() {
       this.orgTle = await this.getTleFromNorad();
-      // console.debug(`this.orgTle=${this.orgTle}`);
       this.orbitMap = this.analyzeTle(this.orgTle);
+      console.info(`TLE 取得完了`);
     },
 
     async getTleFromNorad() {
@@ -114,7 +116,6 @@ export default {
           // .get('/NORAD/elements/active.txt')
           .get('/tle.txt')
           .then(function(res) {
-            console.info(`TLE 取得完了`);
             resolve(res.data);
           });
       });
@@ -124,6 +125,7 @@ export default {
       this.viewSat();
     },
 
+    // 衛星の軌道をGoogleMapに描画
     viewSat() {
       var myTLE = new orbits.TLE(this.orbitMap[this.target].tle);
       var myOrbit = new orbits.Orbit(myTLE);
