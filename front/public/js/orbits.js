@@ -30,6 +30,8 @@ orbits.util.mergeOpts = function(a, b) {
 
 /**
  * takes a Date instance and return julian day
+ * 指定日付のユリウス通日を返す
+ * ユリウス通日（西暦 -4712年1月1日の正午（世界時）からの日数）
  * @param   {Date} date - Date instance
  * @returns {float}
  */
@@ -257,7 +259,7 @@ orbits.Satellite.prototype.refresh = function() {
     if(!this.visible || this.orbit === null || this.map === null) return;
 
     this.orbit.setDate(this.date);
-    this.orbit.propagate();
+    this.orbit.calcSGP4();
     this.position = this.orbit.getLatLng();
     this.marker.setPosition(this.position);
     var alt = this.orbit.getAltitude() * 1000;
@@ -297,7 +299,7 @@ orbits.Satellite.prototype._updatePoly = function() {
     for(; i <= jj; i++) {
         curr_date = new Date(date.getTime() + dt*i);
         this.orbit.setDate(curr_date);
-        this.orbit.propagate();
+        this.orbit.calcSGP4();
         var pos = this.orbit.getLatLng();
         this.path.push(pos);
 
@@ -510,6 +512,7 @@ orbits.TLE.prototype.parse = function(text) {
 
 /**
  * Takes a date instance and returns the different between it and TLE's epoch
+ * 指定の日付とTLEのエポックとの差を分単位で返す
  * @param       {Date} date - A instance of Date
  * @returns     {int} delta time in millis
  */
@@ -529,6 +532,9 @@ orbits.TLE.prototype.toString = function() {
 
 /**
  * Takes orbit.TLE object and initialized the SGP4 model
+ * SGP4で初期化する
+ * 参考：https://www.celestrak.com/NORAD/documentation/spacetrk.pdf
+ * 参考：https://ja.wikipedia.org/wiki/SGP4
  * @class
  * @param  {orbit.TLE} tleObj - An instance of orbits.TLE
  */
@@ -538,7 +544,7 @@ orbits.Orbit = function(tleObj) {
     this.date = null;
 
     // init constants
-    this.ck2 =5.413080e-4;
+    this.ck2 = 5.413080e-4;
     this.ck4 = 0.62098875e-6;
     this.e6a = 1.0e-6;
     this.qoms2t = 1.88027916e-9;
@@ -561,11 +567,16 @@ orbits.Orbit = function(tleObj) {
     this.xnodeo = this.tle.right_ascension * this.torad;
     this.eo = this.tle.eccentricity;
     this.omegao  = this.tle.argument_of_perigee * this.torad;
+
+    // degreeである平均近点角（Mean Anomaly）をradianに変換
     this.xmo = this.tle.mean_anomaly * this.torad;
+    console.debug(`this.xmo=${this.xmo}`)
+
     this.xno = this.tle.mean_motion * this.twopi / 1440.0;
     this.bstar = this.tle.bstar;
 
     // recover orignal mean motion (xnodp) and semimajor axis (adop)
+    // 元の平均運動（xnodp）と半長軸（adop）を復元する
     var a1 = Math.pow(this.xke / this.xno, this.tothrd);
     var cosio = Math.cos(this.xinc);
     var theta2 = cosio*cosio;
@@ -616,7 +627,9 @@ orbits.Orbit = function(tleObj) {
     var temp1 = 3.0 * this.ck2 * pinvsq * xnodp;
     var temp2 = temp1 * this.ck2 * pinvsq;
     var temp3 = 1.25 * this.ck4 * pinvsq * pinvsq * xnodp;
+
     this.xmdot = xnodp + 0.5 * temp1 * betao * x3thm1 + 0.0625 * temp2 * betao * (13.0 - 78.0 * theta2 + 137.0 * theta4);
+    console.debug(`this.xmdot=${this.xmdot}`)
 
     var x1m5th = 1.0 - 5.0 * theta2;
     this.omgdot = -0.5 * temp1 * x1m5th + 0.0625 * temp2 * (7.0 - 114.0 * theta2 + 395.0 * theta4) + temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4);
@@ -631,6 +644,8 @@ orbits.Orbit = function(tleObj) {
     this.delmo = Math.pow((1.0 + eta * Math.cos(this.xmo)),3);
     this.sinmo = Math.sin(this.xmo);
     this.x7thm1 = 7.0 * theta2 - 1.0;
+
+    console.debug(`this.isimp=${this.isimp}`)
 
     var d2, d3, d4;
     if (this.isimp != 1){
@@ -661,14 +676,19 @@ orbits.Orbit = function(tleObj) {
 
 /**
  *calculates position and velocity vectors based date set on the Orbit object
+ * Orbitに設定された日付に基づいて緯度経度と速度ベクトルを計算する
  */
-orbits.Orbit.prototype.propagate = function() {
+orbits.Orbit.prototype.calcSGP4 = function() {
     "use strict";
     var date = (this.date === null) ? new Date() : this.date;
+
+    // 日付とTLEのエポックとの差を分単位で取得する
     var tsince = this.tle.dtime(date);
 
     // update for secular gravity and atmospheric drag
+    // 長期重力と大気抵抗の更新
 
+    // 平均近点角(のRadian) + (xxxx + エポックとの差)
     var xmdf = this.xmo + this.xmdot * tsince;
     var omgadf = this.omegao + this.omgdot * tsince;
     var xnoddf = this.xnodeo + this.xnodot * tsince;
@@ -693,13 +713,17 @@ orbits.Orbit.prototype.propagate = function() {
         tempe = tempe + this.bstar * this.c5 * (Math.sin(xmp) - this.sinmo);
         templ = templ + this.t3cof * tcube + tfour * (this.t4cof + tsince * this.t5cof);
     }
+
+    // 軌道長半径を
     var a = this.aodp * tempa * tempa;
+    // 離心率
     var e = this.eo - tempe;
     var xl = xmp + omega + xnode + this.xnodp * templ;
     var beta = Math.sqrt(1.0 - e*e);
     var xn = this.xke/Math.pow(a,1.5);
 
     // long period periodics
+    // 長期間の定期刊行物
     var axn = e * Math.cos(omega);
     temp = 1.0/(a * beta * beta);
     var xll = temp * this.xlcof * axn;
@@ -708,7 +732,7 @@ orbits.Orbit.prototype.propagate = function() {
     var ayn = e * Math.sin(omega) + aynl;
 
     // solve keplers equation
-
+    // ケプラー方程式を解く
     var capu = (xlt-xnode)%(2.0*Math.PI);
     var temp2 = capu;
     var i;
@@ -727,8 +751,9 @@ orbits.Orbit.prototype.propagate = function() {
         }
         temp2 = epw;
     }
-     // short period preliminary quantities
-
+    
+    // short period preliminary quantities
+    // 短期準備数量
     var ecose = temp5 + temp6;
     var esine = temp3 - temp4;
     var elsq = axn * axn + ayn * ayn;
@@ -752,7 +777,7 @@ orbits.Orbit.prototype.propagate = function() {
     temp2 = temp1 * temp;
 
     // update for short periodics
-
+    // 短周期の更新
     var rk = r*(1.0 - 1.5 * temp2 * betal * this.x3thm1) + 0.5 * temp1 * this.x1mth2 * cos2u;
     var uk = u-0.25 * temp2 * this.x7thm1 * sin2u;
     var xnodek = xnode + 1.5 * temp2 * this.cosio * sin2u;
@@ -761,7 +786,7 @@ orbits.Orbit.prototype.propagate = function() {
     var rfdotk = rfdot + xn * temp1 * (this.x1mth2 * cos2u + 1.5 * this.x3thm1);
 
     // orientation vectors
-
+    // 方向ベクトル
     var sinuk = Math.sin(uk);
     var cosuk = Math.cos(uk);
     var sinik = Math.sin(xinck);
@@ -778,6 +803,7 @@ orbits.Orbit.prototype.propagate = function() {
     var vz = sinik * cosuk;
 
     // position and velocity in km
+    // kmでの位置と速度
     this.x = (rk * ux) * this.xkmper;
     this.y = (rk * uy) * this.xkmper;
     this.z = (rk * uz) * this.xkmper;
@@ -787,6 +813,7 @@ orbits.Orbit.prototype.propagate = function() {
 
     /**
      * orbit period in seconds
+     * 秒単位の軌道周期
      * @type {float}
      * @readonly
      */
@@ -794,21 +821,29 @@ orbits.Orbit.prototype.propagate = function() {
 
     /**
      * velocity in km per second
+     * 速度（km /秒）
      * @type {float}
      * @readonly
      */
     this.velocity = Math.sqrt(this.xdot*this.xdot + this.ydot*this.ydot + this.zdot*this.zdot) / 60; // kmps
 
     // lat, lon and altitude
+    // 緯度、経度、高度
     // based on http://www.celestrak.com/columns/v02n03/
 
+    // 地球半径
     a = 6378.137;
+    // 地球内側半径
     var b = 6356.7523142;
-    var R = Math.sqrt(this.x*this.x + this.y*this.y);
-    var f = (a - b)/a;
+    // 
+    var R = Math.sqrt(this.x * this.x + this.y * this.y);
+    // 
+    var f = (a - b) / a;
+    // グリニッジ平均恒星時
     var gmst = orbits.util.gmst(date);
 
     var e2 = ((2*f) - (f*f));
+    // 緯度経度
     var longitude = Math.atan2(this.y, this.x) - gmst;
     var latitude = Math.atan2(this.z, R);
 
@@ -821,12 +856,14 @@ orbits.Orbit.prototype.propagate = function() {
 
     /**
      * Altitude in kms
+     * 高度（km）
      * @type {float}
      * @readonly
      */
     this.altitude = (R/Math.cos(latitude)) - (a*C);
 
     // convert from radii to degrees
+    // 半径から度に変換する
     longitude  = (longitude / this.torad) % 360;
     if(longitude > 180) longitude = 360 - longitude;
     else if(longitude < -180) longitude = 360 + longitude;
@@ -834,6 +871,7 @@ orbits.Orbit.prototype.propagate = function() {
 
     /**
      * latitude in degrees
+     * 緯度
      * @type {float}
      * @readonly
      */
@@ -841,6 +879,7 @@ orbits.Orbit.prototype.propagate = function() {
 
     /**
      * longtitude in degrees
+     * 経度
      * @type {float}
      * @readonly
      */
