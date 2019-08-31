@@ -188,11 +188,8 @@ export default {
 
     // 衛星の軌道をGoogleMapに描画
     viewSat() {
-      const currentTle = new orbits.TLE(this.orbitMap[this.target].tle);
-      // const myOrbit = new orbits.Orbit(currentTle);
-      const mapArea = new google.maps.Map(document.getElementById("map"));
-      // this.satellite = new orbits.Satellite({ map: mapArea, tle: currentTle});
-      this.satellite = new orbits.Satellite(currentTle);
+      const currentTle = new TinyOrbit.TLE(this.orbitMap[this.target].tle);
+      this.satellite = new TinyOrbit.Satellite(currentTle);
 
       // 地図の初期設定
       var options = {
