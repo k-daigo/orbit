@@ -164,7 +164,8 @@ export default {
       var options = {
         center: mySat.position, // 地図の場所
         mapTypeId: google.maps.MapTypeId.ROADMAP,               // 地図の種類
-        zoom: 1                                                // 地図の縮尺
+        zoom: 1,                                                // 地図の縮尺
+        icon: null,
       };
       this.gmap = new google.maps.Map( document.getElementById("map"), options );
 
@@ -182,13 +183,6 @@ export default {
 
       // 軌道の再描画
       this.refreshOrbitTimer();
-
-      //マーカー
-      var markerOptions = {
-        map: this.gmap,
-        position: mySat.position,
-      };
-      var marker = new google.maps.Marker(markerOptions);
     },
 
     clearMaker() {
@@ -277,6 +271,18 @@ export default {
       let dt = new Date();
       this.gmapMakers = [];
       const satPoints = [];
+
+      //衛星の現在位置
+      this.satellite.setDate(dt);
+      this.satellite.refresh()
+      satPoints.push(this.satellite.position);
+      const satMarkerOptions = {
+        map: this.gmap,
+        position: this.satellite.position,
+      };
+      this.gmapMakers.push(new google.maps.Marker(satMarkerOptions));
+
+      // 軌道と時刻マーカー
       const pointCount = markerConfig[this.gmap.getZoom()].c;
       const interval = markerConfig[this.gmap.getZoom()].i;
       for(let ii = 0; ii < 10000; ii++){
