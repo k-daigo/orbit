@@ -68,6 +68,8 @@ export default {
       satellite: null,
       gmapMakers: [],
       orbitLine: null,
+      bounds: {},
+      execProc: null,
     }
   },
 
@@ -171,11 +173,15 @@ export default {
       google.maps.event.addListener(this.gmap, 'zoom_changed', function() {
         that.onGmapZoomChanged(this.gmap);
       });
+      // 表示中の緯度経度の変更イベント
+      google.maps.event.addListener(this.gmap, 'bounds_changed', function() {
+        that.saveBounds();
+      });
 
       this.satellite = new orbits.Satellite({ map: mapArea, tle: myTLE});
 
       // 軌道の再描画
-      this.refreshOrbit();
+      this.refreshOrbitTimer();
 
       //マーカー
       var markerOptions = {
@@ -185,8 +191,7 @@ export default {
       var marker = new google.maps.Marker(markerOptions);
     },
 
-    refreshOrbit() {
-      // クリアしてから描画
+    clearMaker() {
       // 時刻マーカー
       this.gmapMakers.forEach(function (marker, idx) {
         marker.setMap(null);
@@ -195,34 +200,119 @@ export default {
       if(this.orbitLine != null){
         this.orbitLine.setMap(null);
       }
+    },
+
+    saveBounds() {
+      const bounds = this.gmap.getBounds();
+      this.bounds = {
+        mapNeLat: bounds.getNorthEast().lat(),
+        mapNeLng: bounds.getNorthEast().lng(),
+        mapSwLat: bounds.getSouthWest().lat(),
+        mapSwLng: bounds.getSouthWest().lng(),
+      }
+      // console.debug(`saveBounds=${JSON.stringify(this.bounds)}`)
+      this.refreshOrbitTimer();
+    },
+
+    isSatInRange(lat, lng) {
+      if(this.gmap == null) {
+        return true;
+      }
+
+      // 緯度　画面表示の北と南の範囲内か？
+      if(lat > this.bounds.mapNeLat || lat < this.bounds.mapSwLat) {
+        return false;
+      }
+
+      // 経度　画面表示の西と東の範囲内か？
+      if(lng < this.bounds.mapSwLng || lng > this.bounds.mapNeLng) {
+        return false;
+      }
+
+      // console.debug(`ret true`)
+      return true;
+    },
+
+    refreshOrbitTimer() {
+      if(this.execProc != null) {
+        clearTimeout(this.execProc);
+      }
+      this.execProc = setTimeout(this.refreshOrbit, 500);
+    },
+
+    refreshOrbit() {
+      this.execProc = null;
+      console.debug(`getZoom=${this.gmap.getZoom()}`)
+
+      // クリアしてから描画
+      this.clearMaker();
+
+      const markerConfig = {
+        0: {"c": 200, "i": 1000},
+        1: {"c": 200, "i": 1000},
+        2: {"c": 200, "i": 500},
+        3: {"c": 400, "i": 300},
+        4: {"c": 500, "i": 200},
+        5: {"c": 900, "i": 100},
+        6: {"c": 2000, "i": 50},
+        7: {"c": 2000, "i": 30},
+        8: {"c": 2000, "i": 30},
+        9: {"c": 2000, "i": 5},
+        10: {"c": 2000, "i": 5},
+        11: {"c": 2000, "i": 2},
+        12: {"c": 2000, "i": 2},
+        13: {"c": 2000, "i": 1},
+        14: {"c": 2000, "i": 1},
+        15: {"c": 2000, "i": 1},
+        16: {"c": 2000, "i": 1},
+        17: {"c": 2000, "i": 1},
+        18: {"c": 2000, "i": 1},
+        19: {"c": 2000, "i": 1},
+        20: {"c": 2000, "i": 1},
+        21: {"c": 2000, "i": 1},
+        23: {"c": 2000, "i": 1},
+      }
       
       // 軌跡
       let dt = new Date();
       this.gmapMakers = [];
-      const satTimePoints = [];
-      for(let ii = 0; ii < 200; ii++){
+      const satPoints = [];
+      const pointCount = markerConfig[this.gmap.getZoom()].c;
+      const interval = markerConfig[this.gmap.getZoom()].i;
+      for(let ii = 0; ii < 10000; ii++){
         this.satellite.setDate(dt);
         this.satellite.refresh()
-        satTimePoints.push(this.satellite.position);
 
-        if(ii % 10 == 0) {
+        // 地図の表示範囲内の場合にのみラベルを表示する
+        let label = null;
+        if(this.isSatInRange(this.satellite.position.lat(), this.satellite.position.lng())) {
+          label = {
+            text: moment(dt).format('H:mm:ss'),
+            color: '#000000',
+            fontFamily: 'sans-serif',
+            fontSize: '8px'
+          };
+        }
+
+        satPoints.push(this.satellite.position);
+
+        if(ii % interval == 0) {
           var markerOptions = {
             map: this.gmap,
             position: this.satellite.position,
-            icon : 'http://chart.apis.google.com/chart?'
-                          + 'chst=d_text_outline'
-                          + '&chld=000000|10|h|ffffff|_|'
-                          + moment(dt).format('H:mm:ss')};
+            icon: "none",
+            label: label,
+          };
           this.gmapMakers.push(new google.maps.Marker(markerOptions));
         }
 
-        // 次の軌跡は1分後の位置
-        dt.setMinutes(dt.getMinutes() + 1);
+        // 次の軌跡は1秒後の位置
+        dt.setSeconds(dt.getSeconds() + 1);
       }
 
       // 軌道の線と時刻マーカーの設定
       this.orbitLine = new google.maps.Polyline({
-          path: satTimePoints,
+          path: satPoints,
           strokeColor: "#FF0000",
           strokeOpacity: 1.0,
           strokeWeight: 2,
@@ -313,7 +403,7 @@ export default {
     },
 
     onGmapZoomChanged(gmap) {
-      this.refreshOrbit();
+      this.refreshOrbitTimer();
     },
   },
 
