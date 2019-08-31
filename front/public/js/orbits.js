@@ -1,31 +1,9 @@
-/**
- * orbits-js
- * @author Rossen Georgiev @ {@link https://github.com/rossengeorgiev}
- * @description A tiny library that can parse TLE, and display the orbit on the map
- * @requires: GMaps API 3
- *
- * @version 1.2.1
- * @namespace
- */
 var orbits = {
     version: '1.2.1',
     /**
      * @namespace
      */
     util: {}
-};
-
-/**
- * merge two objects together, b takes precedence
- * @param   {Object} a - First object instance
- * @param   {Object} b - Second object instance
- * @returns {Object}
- */
-orbits.util.mergeOpts = function(a, b) {
-    var k, result = {};
-    for(k in a) result[k] = a[k];
-    for(k in b) result[k] = b[k];
-    return result;
 };
 
 /**
@@ -56,176 +34,16 @@ orbits.util.gmst = function(date) {
 };
 
 /**
- * Get distance to true horizon in meters
- * @param   {float} altitude - In meters
- * @returns {float}
- */
-orbits.util.getDistanceToHorizon = function(altitude) {
-    return Math.sqrt(12.756 * altitude) * 1000;
-};
-
-orbits.util.halfEarthCircumference = parseInt(6371 * Math.PI * 500);
-
-/**
- * Calculate position of the sun for a given date
- * @param   {Date} date - An instance of Date
- * @returns {float[]} [latitude, longitude]
- */
-orbits.util.calculatePositionOfSun = function(date) {
-    date = (date instanceof Date) ? date : new Date();
-
-    var rad = 0.017453292519943295;
-
-    // based on NOAA solar calculations
-    var mins_past_midnight = (date.getUTCHours() * 60 + date.getUTCMinutes()) / 1440;
-    var jc = (this.jday(date) - 2451545)/36525;
-    var mean_long_sun = (280.46646+jc*(36000.76983+jc*0.0003032)) % 360;
-    var mean_anom_sun = 357.52911+jc*(35999.05029-0.0001537*jc);
-    var sun_eq = Math.sin(rad*mean_anom_sun)*(1.914602-jc*(0.004817+0.000014*jc))+Math.sin(rad*2*mean_anom_sun)*(0.019993-0.000101*jc)+Math.sin(rad*3*mean_anom_sun)*0.000289;
-    var sun_true_long = mean_long_sun + sun_eq;
-    var sun_app_long = sun_true_long - 0.00569 - 0.00478*Math.sin(rad*125.04-1934.136*jc);
-    var mean_obliq_ecliptic = 23+(26+((21.448-jc*(46.815+jc*(0.00059-jc*0.001813))))/60)/60;
-    var obliq_corr = mean_obliq_ecliptic + 0.00256*Math.cos(rad*125.04-1934.136*jc);
-    var lat = Math.asin(Math.sin(rad*obliq_corr)*Math.sin(rad*sun_app_long)) / rad;
-    var eccent = 0.016708634-jc*(0.000042037+0.0000001267*jc);
-    var y = Math.tan(rad*(obliq_corr/2))*Math.tan(rad*(obliq_corr/2));
-    var rq_of_time = 4*((y*Math.sin(2*rad*mean_long_sun)-2*eccent*Math.sin(rad*mean_anom_sun)+4*eccent*y*Math.sin(rad*mean_anom_sun)*Math.cos(2*rad*mean_long_sun)-0.5*y*y*Math.sin(4*rad*mean_long_sun)-1.25*eccent*eccent*Math.sin(2*rad*mean_anom_sun))/rad);
-    var true_solar_time = (mins_past_midnight*1440+rq_of_time) % 1440;
-    var lng = -((true_solar_time/4 < 0) ? true_solar_time/4 + 180 : true_solar_time/4 - 180);
-
-    return [lat, lng];
-};
-
-/**
- * Calculate LatLng of the sun for a given date
- * @param   {Date} date - An instance of Date
- * @returns {google.maps.LatLng}
- */
-orbits.util.calculateLatLngOfSun = function(date) {
-    var pos = orbits.util.calculatePositionOfSun(date);
-    return new google.maps.LatLng(pos[0], pos[1]);
-};
-
-/**
- * Parses a string with one or more TLEs
- * @param       {string} text - A string containing one or more TLEs
- * @returns     {array.<orbits.TLE>} An array of orbit.TLE instances
- */
-orbits.util.parseTLE = function(text) {
-    "use strict";
-    if(!text || typeof text != "string" || text === "") return [];
-
-    var lines = text.split("\n");
-
-    // trim emepty lines
-    for(var i = 0; i < lines.length; i++) if(lines[i] === "") lines.splice(i,1);
-
-    // see if we got somethin reasonable
-    if(lines.length < 3) return [];
-    if(lines.length % 3 !== 0)
-        throw new SyntaxError("The number of lines should be multiple of 3");
-
-    // try and make the array
-    var three;
-    var array = [];
-    while(lines.length) array.push(new orbits.TLE(lines.splice(0,3).join("\n")));
-
-    return array;
-};
-
-/**
- *Object with the default options for Satellite object
- * @prop {orbits.TLE}                   tle          - An instance of orbits.TLE
- * @prop {string}                       title        - Alternative title to use for the marker, instead of the one from TLE
- * @prop {float}                        pathLength   - The length is in periods. Length = period * pathLength
- * @prop {boolean}                      visible      - Whenever to display the map or not
- * @prop {google.maps.Map}              map          - An instance of google.maps.Map
- * @prop {google.maps.MarkerOptions}    markerOpts   - An instance of google.maps.MarkerOptions
- * @prop {google.maps.CircleOptions}    horzionOpts  - An instance of google.maps.CircleOptions
- * @prop {google.maps.PolylineOptions}  polylineOpts - An instance of google.maps.PolylineOptions
- * @prop {boolean}                      drawShadowPolylines - Whenever to draw indicators when Satellite is shadowed by Earth
- * @prop {google.maps.PolylineOptions}  shadowPolylinesOpts - An instance of google.maps.PolylineOptions
- */
-orbits.SatelliteOptions = {
-    tle: "",
-    title: null,
-    pathLength: 1,
-    visible: true,
-    map: null,
-    markerOpts: {
-        zIndex: 50,
-    },
-    horizonOpts: {
-        radius: 0,
-        zIndex: 10,
-        strokeWeight: 2,
-        strokeColor: "white",
-        strokeOpacity: 0.8,
-        fillColor: "white",
-        fillOpacity: 0.2,
-    },
-    polylineOpts: {
-        zIndex: 20,
-        geodesic: true,
-        strokeWeight: 2,
-        strokeColor: "blue",
-        strokeOpacity: 0.8
-    },
-    drawShadowPolylines: true,
-    shadowPolylinesOpts: {
-        zIndex: 20,
-        geodesic: true,
-        strokeWeight: 5,
-        strokeColor: "blue",
-        strokeOpacity: 0.8
-    },
-};
-
-/**
  *Initializes a Satellite object (requires Google Maps API3)
  * @class
- * @param   {orbits.SatelliteOptions} options - an obj with options, see orbits.SatelliteOptions
  */
-orbits.Satellite = function(options) {
+orbits.Satellite = function(tle) {
     "use strict";
-    this.tle = null;
+    this.tle = tle;
     this.position = null;
-    this.path = null;
-    this.visible = true;
     this.orbit = null;
     this.date = null;
-
-    // handle options
-    options = (typeof options == 'object') ? options : {};
-
-    var opt;
-    for(opt in orbits.SatelliteOptions) {
-        if(opt in options) {
-            if(typeof orbits.SatelliteOptions[opt] === "object" && orbits.SatelliteOptions[opt] !== null) {
-                this[opt] = orbits.util.mergeOpts(orbits.SatelliteOptions[opt], options[opt]);
-            }
-            else {
-                this[opt] = options[opt];
-            }
-        }
-        else {
-            this[opt] = orbits.SatelliteOptions[opt];
-        }
-    }
-
-    // init map elements, if note are set
-    this.marker = new google.maps.Marker(this.markerOpts);
-    this.horizon = new google.maps.Circle(this.horizonOpts);
-    this.horizon.bindTo('center', this.marker, 'position');
-    this.polyline = new google.maps.Polyline(this.polylineOpts);
-    this.shadowPolylines = [];
-
-    // attach markers to map
-    if(this.visible) this.setMap(this.map);
-
-    // check if we have TLE and init orbit
-    if(this.tle !== null && !(this.tle instanceof orbits.TLE)) this.tle = null;
-    if(this.tle !== null) this.setTLE(this.tle);
+    this.orbit = new orbits.Orbit(tle);
 
     // refresh
     this.refresh();
@@ -241,273 +59,70 @@ orbits.Satellite.prototype.setDate = function(date) {
 };
 
 /**
- * Set the map instance to use
- * @param   {google.maps.Map} map - An instance of google.maps.Map
- */
-orbits.Satellite.prototype.setMap = function(map) {
-    this.map = map;
-    this.marker.setMap(this.map);
-    this.horizon.setMap(this.map);
-    this.polyline.setMap(this.map);
-    this.shadowPolylines.forEach(function(v) { v.setMap(this.map); });
-};
-
-/**
  *Recalculates the position and updates the markers
  */
 orbits.Satellite.prototype.refresh = function() {
-    if(!this.visible || this.orbit === null || this.map === null) return;
-
-    this.orbit.setDate(this.date);
-    this.orbit.calcSGP4();
-    this.position = this.orbit.getLatLng();
-    this.marker.setPosition(this.position);
-    var alt = this.orbit.getAltitude() * 1000;
-    this.horizon.setRadius(orbits.util.getDistanceToHorizon(alt));
-};
-
-/**
- *Redraw path
- */
-orbits.Satellite.prototype.refresh_path = function() {
-    if(this.pathLength >= 1.0/180) this._updatePoly();
-};
-
-/**
- * Set TLE for this satellite
- * @param   {orbits.TLE} tle - An instance of orbits.TLE
- */
-orbits.Satellite.prototype.setTLE = function(tle) {
-    this.orbit = new orbits.Orbit(tle);
-    this.marker.setTitle(tle.name);
-};
-
-orbits.Satellite.prototype._updatePoly = function() {
-    var dt = (this.orbit.getPeriod() * 1000) / 180;
-    var date = (this.date) ? this.date : new Date();
-    this.path = [];
-    this.shadowPolylines.forEach(function(v) { v.setMap(null); });
-    this.shadowPolylines = [];
-    var night = false;
-    var curr_path = [];
-    var curr_poly = null;
-    var curr_date = null;
-    var curr_night = null;
-
-    var i = 0;
-    var jj = (180 * this.pathLength) + 1;
-    for(; i <= jj; i++) {
-        curr_date = new Date(date.getTime() + dt*i);
-        this.orbit.setDate(curr_date);
-        this.orbit.calcSGP4();
-        var pos = this.orbit.getLatLng();
-        this.path.push(pos);
-
-        if(!this.drawShadowPolylines) continue;
-
-        var dist = google.maps.geometry.spherical.computeDistanceBetween(orbits.util.calculateLatLngOfSun(curr_date), pos);
-        curr_night = dist > orbits.util.halfEarthCircumference + orbits.util.getDistanceToHorizon(this.orbit.getAltitude() * 1000);
-
-        if(night === true && curr_night === true) {
-            curr_path.push(pos);
-        }
-        else if(night === true && curr_night === false) {
-            curr_poly.setPath(curr_path);
-        }
-        else if(night === false && curr_night === true) {
-            curr_poly = new google.maps.Polyline(this.shadowPolylinesOpts);
-            curr_poly.setMap(this.map);
-            this.shadowPolylines.push(curr_poly);
-
-            curr_path = [pos];
-        }
-        night = curr_night;
+    if(this.orbit === null) {
+        return;
     }
 
-    if(night) curr_poly.setPath(curr_path);
-
-    this.polyline.setPath(this.path);
+    this.orbit.setDate(this.date);
+    this.orbit.calc();
+    this.lat = this.orbit.getLat();
+    this.lon = this.orbit.getLon();
 };
 
 /**
  * Initializes a TLE object containing parsed TLE
  * @class
- * @param {string} text - A TLE string of 3 lines
+ * @param {string} tleText - A TLE string of 3 lines
  */
-orbits.TLE = function(text) {
-    this.text = text;
-    this.parse(this.text);
+orbits.TLE = function (tleText) {
+    this.tleText = tleText;
+    this.parse(this.tleText);
 };
 
 /**
  * Parses TLE string and sets the proporties
- * @param {string} text - A TLE string of 3 lines
+ * @param {string} tleText - A TLE string of 3 lines
  */
-orbits.TLE.prototype.parse = function(text) {
+orbits.TLE.prototype.parse = function (tleText) {
     "use strict";
-    var lines = text.split("\n");
+    const lines = tleText.split("\n");
 
-    if(lines.length != 3) throw new SyntaxError("Invalid TLE syntax");
-
-    // parse first line
-    this.name = lines[0].substring(0,24).trim();
-
-    // parse second line
-    if(lines[1][0] != "1") throw new SyntaxError("Invalid TLE syntax");
-
-    // TODO: verify line using the checksum in field 14
-
-    /**
-     * Satellite Number
-     * @type {int}
-     * @readonly
-     */
-    this.satelite_number = parseInt(lines[1].substring(2,7));
-
-    /**
-     * Classification (U=Unclassified)
-     * @type {string}
-     * @readonly
-     */
-    this.classification = lines[1].substring(7,8);
-
-    /**
-     * International Designator (Last two digits of launch year, eg. '98')
-     * @type {string}
-     * @readonly
-     */
-    this.intd_year = lines[1].substring(9,11);
-
-    /**
-     * International Designator (Launch number of the year, eg. '067')
-     * @type {string}
-     * @readonly
-     */
-    this.intd_ln = lines[1].substring(11,14);
-
-    /**
-     * International Designator (Piece of the launch, eg. 'A')
-     * @type {string}
-     * @readonly
-     */
-    this.intd_place = lines[1].substring(14,17).trim();
-
-    /**
-     * International Designator (eg. 98067A)
-     * @type {string}
-     * @readonly
-     */
-    this.intd = lines[1].substring(9,17).trim();
-
-    /**
-     * Epoch Year (Full year)
-     * @type {int}
-     * @readonly
-     */
+    // Line1・この軌道要素の元期 (年のラスト2桁)
     this.epoch_year = parseInt(lines[1].substring(18,20));
     this.epoch_year += (this.epoch_year < 57) ? 2000 : 1000;
 
-    /**
-     * Epoch (Day of the year and fractional portion of the day)
-     * @type {float}
-     * @readonly
-     */
+    // Line1・元期 (その年の通日3桁、および該日における時刻を表す9桁の小数)
     this.epoch_day = parseFloat(lines[1].substring(20,32));
 
-    /**
-     * First Time Derivative of the Mean Motion divided by two
-     * @type {float}
-     * @readonly
-     */
-    this.ftd = parseFloat(lines[1].substring(33,43));
-
-    /**
-     * Second Time Derivative of Mean Motion divided by six
-     * @type {float}
-     * @readonly
-     */
-    this.std = 0;
-    var tmp = lines[1].substring(44,52).split(/[+-]/);
-    if(tmp.length == 3) this.std = -1 * parseFloat("."+tmp[1].trim()) * Math.pow(10,-parseInt(tmp[2]));
-    else this.std = parseFloat("."+tmp[0].trim()) * Math.pow(10,-parseInt(tmp[1]));
-
-    /**
-     * BSTAR drag term
-     * @type {float}
-     * @readonly
-     */
+    // Line1・B* (B STAR) 抗力項
     this.bstar = 0;
-    tmp = lines[1].substring(53,61).split(/[+-]/);
-    if(tmp.length == 3) this.bstar = -1 * parseFloat("."+tmp[1].trim()) * Math.pow(10,-parseInt(tmp[2]));
-    else this.bstar = parseFloat("."+tmp[0].trim()) * Math.pow(10,-parseInt(tmp[1]));
+    const tmp = lines[1].substring(53,61).split(/[+-]/);
+    if (tmp.length == 3) {
+        this.bstar = -1 * parseFloat("."+tmp[1].trim()) * Math.pow(10,-parseInt(tmp[2]));
+    } else {
+        this.bstar = parseFloat("."+tmp[0].trim()) * Math.pow(10,-parseInt(tmp[1]));
+    }
 
-    /**
-     * The number 0 (Originally this should have been "Ephemeris type")
-     * @type {int}
-     * @readonly
-     */
-    this.ehemeris_type = parseInt(lines[1].substring(62,63));
-
-    /**
-     * Element set number. incremented when a new TLE is generated for this object.
-     * @type {int}
-     * @readonly
-     */
-    this.element_number = parseInt(lines[1].substring(64,68));
-
-    // parse third line
-    if(lines[2][0] != "2") throw new SyntaxError("Invalid TLE syntax");
-
-    // TODO: verify line using the checksum in field 14
-
-    /**
-     * Inclination [Degrees]
-     * @type {float}
-     * @readonly
-     */
+    // Line2・軌道傾斜角（Degreee）
     this.inclination = parseFloat(lines[2].substring(8,16));
 
-    /**
-     * Right Ascension of the Ascending Node [Degrees]
-     * @type {float}
-     * @readonly
-     */
+    // Line2・昇交点の赤経（Degreee）
     this.right_ascension = parseFloat(lines[2].substring(17,25));
 
-    /**
-     * Eccentricity
-     * @type {float}
-     * @readonly
-     */
+    // Line2・離心率
     this.eccentricity = parseFloat("."+lines[2].substring(26,33).trim());
 
-    /**
-     * Argument of Perigee [Degrees]
-     * @type {float}
-     * @readonly
-     */
+    // Line2・近地点引数（Degree）
     this.argument_of_perigee = parseFloat(lines[2].substring(34,42));
 
-    /**
-     * Mean Anomaly [Degrees]
-     * @type {float}
-     * @readonly
-     */
+    // Line2・平均近点角（Degree）
     this.mean_anomaly = parseFloat(lines[2].substring(43,51));
 
-    /**
-     * Mean Motion [Revs per day]
-     * @type {float}
-     * @readonly
-     */
+    // Line2・平均運動 (回転/day）
     this.mean_motion = parseFloat(lines[2].substring(52,63));
-
-    /**
-     * Revolution number at epoch [Revs]
-     * @type {int}
-     * @readonly
-     */
-    this.epoch_rev_number = parseInt(lines[2].substring(63,68));
 };
 
 /**
@@ -517,17 +132,9 @@ orbits.TLE.prototype.parse = function(text) {
  * @returns     {int} delta time in millis
  */
 orbits.TLE.prototype.dtime = function(date) {
-    var a = orbits.util.jday(date);
-    var b = orbits.util.jday(new Date(Date.UTC(this.epoch_year, 0, 0, 0, 0, 0) + this.epoch_day * 86400000));
+    const a = orbits.util.jday(date);
+    const b = orbits.util.jday(new Date(Date.UTC(this.epoch_year, 0, 0, 0, 0, 0) + this.epoch_day * 86400000));
     return (a - b) * 1440.0; // in minutes
-};
-
-/**
- * Returns the TLE string
- * @returns {string} TLE string in 3 lines
- */
-orbits.TLE.prototype.toString = function() {
-    return this.text;
 };
 
 /**
@@ -678,7 +285,7 @@ orbits.Orbit = function(tleObj) {
  *calculates position and velocity vectors based date set on the Orbit object
  * Orbitに設定された日付に基づいて緯度経度と速度ベクトルを計算する
  */
-orbits.Orbit.prototype.calcSGP4 = function() {
+orbits.Orbit.prototype.calc = function() {
     "use strict";
     var date = (this.date === null) ? new Date() : this.date;
 
@@ -865,8 +472,11 @@ orbits.Orbit.prototype.calcSGP4 = function() {
     // convert from radii to degrees
     // 半径から度に変換する
     longitude  = (longitude / this.torad) % 360;
-    if(longitude > 180) longitude = 360 - longitude;
-    else if(longitude < -180) longitude = 360 + longitude;
+    if (longitude > 180) {
+        longitude = 360 - longitude;
+    } else if(longitude < -180) {
+        longitude = 360 + longitude;
+    }
     latitude  = (latitude / this.torad);
 
     /**
@@ -894,44 +504,11 @@ orbits.Orbit.prototype.setDate = function(date) {
     this.date = date;
 };
 
-/**
- * get position
- * @returns {float[]} [latitude, longitude]
- */
-orbits.Orbit.prototype.getPosition = function() {
-    return [this.latitude, this.longitude];
+
+orbits.Orbit.prototype.getLat = function () {
+    return this.latitude;
 };
 
-/**
- * get position in LatLng
- * @returns {google.maps.LatLng}
- */
-orbits.Orbit.prototype.getLatLng = function() {
-    // console.debug(`orbits.Orbit.prototype.getLatLng this.latitude=${this.latitude} this.longitude=${this.longitude}`)
-    // console.debug(`new google.maps.LatLng(this.latitude, this.longitude)=${new google.maps.LatLng(this.latitude, this.longitude)}`)
-    return new google.maps.LatLng(this.latitude, this.longitude);
-};
-
-/**
- * get altitude in km
- * @returns {float}
- */
-orbits.Orbit.prototype.getAltitude = function() {
-    return this.altitude;
-};
-
-/**
- * get velocity in km per seconds
- * @returns {float}
- */
-orbits.Orbit.prototype.getVelocity = function() {
-    return this.velocity;
-};
-
-/**
- *get period in seconds
- * @returns {float}
- */
-orbits.Orbit.prototype.getPeriod = function() {
-    return this.period;
+orbits.Orbit.prototype.getLon = function () {
+    return this.longitude;
 };

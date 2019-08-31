@@ -191,11 +191,12 @@ export default {
       const currentTle = new orbits.TLE(this.orbitMap[this.target].tle);
       // const myOrbit = new orbits.Orbit(currentTle);
       const mapArea = new google.maps.Map(document.getElementById("map"));
-      this.satellite = new orbits.Satellite({ map: mapArea, tle: currentTle});
+      // this.satellite = new orbits.Satellite({ map: mapArea, tle: currentTle});
+      this.satellite = new orbits.Satellite(currentTle);
 
       // 地図の初期設定
       var options = {
-        center: this.satellite.position,
+        center: new google.maps.LatLng(this.satellite.lat, this.satellite.lon),
         mapTypeId: google.maps.MapTypeId.ROADMAP,
         zoom: 1,
         icon: null,
@@ -231,7 +232,7 @@ export default {
 
       var markerOptions = {
         map: this.gmap,
-        position: this.satellite.position,
+        position: new google.maps.LatLng(this.satellite.lat, this.satellite.lon),
       };
 
       if(this.satMarker != null) {
@@ -245,7 +246,7 @@ export default {
       let dt = new Date();
       this.satellite.setDate(dt);
       this.satellite.refresh()
-      this.satMarker.setPosition(this.satellite.position);
+      this.satMarker.setPosition(new google.maps.LatLng(this.satellite.lat, this.satellite.lon));
     },
 
     // 軌道の線と時刻マーカーをクリア
@@ -328,7 +329,7 @@ export default {
 
         // 地図の表示範囲内の場合にのみラベルを表示する
         let label = null;
-        if(this.isSatInRange(this.satellite.position.lat(), this.satellite.position.lng())) {
+        if(this.isSatInRange(this.satellite.lat, this.satellite.lon)) {
           label = {
             text: moment(dt).format('H:mm:ss'),
             color: '#000000',
@@ -336,13 +337,14 @@ export default {
             fontSize: '8px'
           };
         }
-        satPoints.push(this.satellite.position);
+        const gLatLon = new google.maps.LatLng(this.satellite.lat, this.satellite.lon);
+        satPoints.push(gLatLon);
 
         // 時刻マーカーの出力
         if(ii % interval == 0) {
           var markerOptions = {
             map: this.gmap,
-            position: this.satellite.position,
+            position: gLatLon,
             icon: "none",
             label: label,
           };
