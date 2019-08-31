@@ -64,6 +64,10 @@ export default {
       dtIntervalId: "",
       meneItem: false,
       saveMenuWidth: "",
+      gmap: null,
+      satellite: null,
+      gmapMakers: [],
+      orbitLine: null,
     }
   },
 
@@ -153,57 +157,81 @@ export default {
     viewSat() {
       var myTLE = new orbits.TLE(this.orbitMap[this.target].tle);
       var myOrbit = new orbits.Orbit(myTLE);
-      var myMap = new google.maps.Map(document.getElementById("map"));
-      var mySat = new orbits.Satellite({ map: myMap, tle: myTLE});
+      var mapArea = new google.maps.Map(document.getElementById("map"));
+      var mySat = new orbits.Satellite({ map: mapArea, tle: myTLE});
       var options = {
         center: mySat.position, // 地図の場所
         mapTypeId: google.maps.MapTypeId.ROADMAP,               // 地図の種類
         zoom: 1                                                // 地図の縮尺
       };
-      const gmap = new google.maps.Map( document.getElementById("map"), options );
+      this.gmap = new google.maps.Map( document.getElementById("map"), options );
 
-      const calSat = new orbits.Satellite({ map: myMap, tle: myTLE});
+      // 地図のズーム変更イベント
+      const that = this;
+      google.maps.event.addListener(this.gmap, 'zoom_changed', function() {
+        that.onGmapZoomChanged(this.gmap);
+      });
 
+      this.satellite = new orbits.Satellite({ map: mapArea, tle: myTLE});
+
+      // 軌道の再描画
+      this.refreshOrbit();
+
+      //マーカー
+      var markerOptions = {
+        map: this.gmap,
+        position: mySat.position,
+      };
+      var marker = new google.maps.Marker(markerOptions);
+    },
+
+    refreshOrbit() {
+      // クリアしてから描画
+      // 時刻マーカー
+      this.gmapMakers.forEach(function (marker, idx) {
+        marker.setMap(null);
+      });
+      // 軌道の線
+      if(this.orbitLine != null){
+        this.orbitLine.setMap(null);
+      }
+      
       // 軌跡
       let dt = new Date();
-      const points = [];
+      this.gmapMakers = [];
+      const satTimePoints = [];
       for(let ii = 0; ii < 200; ii++){
-        calSat.setDate(dt);
-        calSat.refresh()
-        points.push(calSat.position);
+        this.satellite.setDate(dt);
+        this.satellite.refresh()
+        satTimePoints.push(this.satellite.position);
 
         if(ii % 10 == 0) {
           var markerOptions = {
-            map: gmap,
-            position: calSat.position,
-                  icon : 'http://chart.apis.google.com/chart?'
-                                + 'chst=d_text_outline'
-                                + '&chld=000000|10|h|ffffff|_|'
-                                + moment(dt).format('H:mm:ss')};
-          new google.maps.Marker(markerOptions);
+            map: this.gmap,
+            position: this.satellite.position,
+            icon : 'http://chart.apis.google.com/chart?'
+                          + 'chst=d_text_outline'
+                          + '&chld=000000|10|h|ffffff|_|'
+                          + moment(dt).format('H:mm:ss')};
+          this.gmapMakers.push(new google.maps.Marker(markerOptions));
         }
 
         // 次の軌跡は1分後の位置
         dt.setMinutes(dt.getMinutes() + 1);
       }
 
-      const area = new google.maps.Polyline({
-          path: points,
+      // 軌道の線と時刻マーカーの設定
+      this.orbitLine = new google.maps.Polyline({
+          path: satTimePoints,
           strokeColor: "#FF0000",
           strokeOpacity: 1.0,
           strokeWeight: 2,
           geodesic: true ,
         }
       );
-      area.setMap(gmap);
 
-      //マーカー
-      var markerOptions = {
-        map: gmap,
-        position: mySat.position,
-      };
-      var marker = new google.maps.Marker(markerOptions);
-
+      // 描画
+      this.orbitLine.setMap(this.gmap);
     },
 
     analyzeTle(tle) {
@@ -282,6 +310,10 @@ export default {
           a[i].style.display = "none";
         }
       }
+    },
+
+    onGmapZoomChanged(gmap) {
+      this.refreshOrbit();
     },
   },
 
