@@ -66,6 +66,7 @@ export default {
       saveMenuWidth: "",
       gmap: null,
       satellite: null,
+      satMarker: null,
       gmapMakers: [],
       orbitLine: null,
       bounds: {},
@@ -100,7 +101,10 @@ export default {
     // 時刻更新
     refreshClcok() {
       this.clock = moment(new Date).format('YYYY/MM/DD HH:mm:ss');
-    },
+
+      // 衛星の移動
+      this.moveSatMarker();
+      },
 
     onMenuMouseover() {
       anime({
@@ -166,6 +170,8 @@ export default {
         mapTypeId: google.maps.MapTypeId.ROADMAP,               // 地図の種類
         zoom: 1,                                                // 地図の縮尺
         icon: null,
+        streetViewControl: false,
+        fullscreenControl: false,
       };
       this.gmap = new google.maps.Map( document.getElementById("map"), options );
 
@@ -183,6 +189,30 @@ export default {
 
       // 軌道の再描画
       this.refreshOrbitTimer();
+    },
+
+    // 衛星の現在位置を表示
+    viewSatMarker() {
+      let dt = new Date();
+      this.satellite.setDate(dt);
+      this.satellite.refresh()
+
+      var markerOptions = {
+        map: this.gmap,
+        position: this.satellite.position,
+      };
+
+      if(this.satMarker != null) {
+        this.satMarker.setMap(null);
+      }
+      this.satMarker = new google.maps.Marker(markerOptions);
+    },
+
+    moveSatMarker() {
+      let dt = new Date();
+      this.satellite.setDate(dt);
+      this.satellite.refresh()
+      this.satMarker.setPosition(this.satellite.position);
     },
 
     clearMaker() {
@@ -273,14 +303,7 @@ export default {
       const satPoints = [];
 
       //衛星の現在位置
-      this.satellite.setDate(dt);
-      this.satellite.refresh()
-      satPoints.push(this.satellite.position);
-      const satMarkerOptions = {
-        map: this.gmap,
-        position: this.satellite.position,
-      };
-      this.gmapMakers.push(new google.maps.Marker(satMarkerOptions));
+      this.viewSatMarker();
 
       // 軌道と時刻マーカー
       const pointCount = markerConfig[this.gmap.getZoom()].c;
