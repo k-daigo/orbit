@@ -1,35 +1,36 @@
-var TinyOrbit = {
-    version: '1.2.1',
-    /**
-     * @namespace
-     */
+const TinyOrbit = {
     util: {}
 };
 
+TinyOrbit.ONEDAY_MS = 1000 * 60 * 60 * 24;      // 1日のミリ秒
+TinyOrbit.JULIAN_DAY_DELTA = 2440587.5;         // ユリウス通日に変換する為の日数（4712年1月1日の正午（世界時）からの日数）
+TinyOrbit.JULIAN_CENTURY = 36525;               // 1ユリウス世紀（36525日）
+
 /**
- * takes a Date instance and return julian day
  * 指定日付のユリウス通日を返す
- * ユリウス通日（西暦 -4712年1月1日の正午（世界時）からの日数）
- * @param   {Date} date - Date instance
- * @returns {float}
+ * ※ユリウス通日（西暦 -4712年1月1日の正午（世界時）からの日数）
  */
-TinyOrbit.util.jday = function(date) {
-    return (date.getTime() / 86400000.0) + 2440587.5;
+TinyOrbit.util.conbJulianDay = function(date) {
+    return (date.getTime() / TinyOrbit.ONEDAY_MS) + TinyOrbit.JULIAN_DAY_DELTA;
 };
 
 /**
- * takes a Date instance and returns Greenwich mean sidereal time in radii
- * @param   {Date} date - Date instance
- * @returns {float}
+ * GMST（Greenwich mean sidereal time）（グリニッジ平均恒星時）に変換する
  */
-TinyOrbit.util.gmst = function(date) {
-    const jd = TinyOrbit.util.jday(date);
-    //t is the time difference in Julian centuries of Universal Time (UT1) from J2000.0.
-    const t = (jd - 2451545.0) / 36525;
-    // based on http://www.space-plasma.qmul.ac.uk/heliocoords/systems2art/node10.html
-    let gmst = 67310.54841 + (876600.0*3600 + 8640184.812866) * t + 0.093104 * t*t - 0.0000062 * t*t*t;
+TinyOrbit.util.convGmst = function(date) {
+    // ユリウス通日
+    const julianDay = TinyOrbit.util.conbJulianDay(date);
+
+    // ユリウス世紀数
+    // J2000からの経過日数をユリウス世紀単位で測った時間をユリウス世紀数という
+    // ユリウス年の基準は2000年1月1日正午 (JD 2451545.0) 。これをJ2000.0と表記する
+    const ut1 = (julianDay - 2451545.0) / TinyOrbit.JULIAN_CENTURY;
+
+    // GMST = 18h 41m 50.54841s + 8640184.812866s * UT1 + 0.093104s * UT1 ^ 2 - 0.0000062s * (UT1 ^ 3)
+    let gmst = 67310.54841 + ((876600.0 * 3600 + 8640184.812866) * ut1) + (0.093104 * ut1 * ut1) - (0.0000062 * (ut1 * ut1 * ut1));
     gmst = (gmst * (Math.PI/180) / 240.0) % (Math.PI*2);
-    gmst += (gmst<0) ? Math.PI*2 : 0;
+    gmst += (gmst < 0) ? Math.PI*2 : 0;
+
     return gmst;
 };
 
@@ -132,8 +133,8 @@ TinyOrbit.TLE.prototype.parse = function (tleText) {
  * @returns     {int} delta time in millis
  */
 TinyOrbit.TLE.prototype.dtime = function(date) {
-    const a = TinyOrbit.util.jday(date);
-    const b = TinyOrbit.util.jday(new Date(Date.UTC(this.epochYear, 0, 0, 0, 0, 0) + this.epochDay * 86400000));
+    const a = TinyOrbit.util.conbJulianDay(date);
+    const b = TinyOrbit.util.conbJulianDay(new Date(Date.UTC(this.epochYear, 0, 0, 0, 0, 0) + this.epochDay * 86400000));
     return (a - b) * 1440.0; // in minutes
 };
 
@@ -440,7 +441,7 @@ TinyOrbit.Orbit.prototype.calc = function() {
     // 
     const f = (a - b) / a;
     // グリニッジ平均恒星時
-    const gmst = TinyOrbit.util.gmst(date);
+    const gmst = TinyOrbit.util.convGmst(date);
 
     const e2 = ((2*f) - (f*f));
     // 緯度経度
