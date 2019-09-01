@@ -43,6 +43,8 @@
 </template>
 
 <script>
+"use strict";
+
 import axios from 'axios';
 axios.defaults.headers.common['Content-Type'] = 'application/x-www-form-urlencoded'
 axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
@@ -79,29 +81,9 @@ export default {
       
       // 地図の拡大値による、時刻マーカーの表示間隔の設定
       markerConfig: {
-        0: 1000,
-        1: 1000,
-        2: 500,
-        3: 300,
-        4: 200,
-        5: 100,
-        6: 50,
-        7: 30,
-        8: 30,
-        9: 5,
-        10: 5,
-        11: 2,
-        12: 2,
-        13: 1,
-        14: 1,
-        15: 1,
-        16: 1,
-        17: 1,
-        18: 1,
-        19: 1,
-        20: 1,
-        21: 1,
-        23: 1,
+        0: 1000, 1: 1000, 2: 500, 3: 300, 4: 200, 5: 100, 6: 50, 7: 30, 8: 30, 9: 5,
+        10: 5, 11: 2, 12: 2, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 
+        20: 1, 21: 1, 23: 1,
       },
     }
   },
@@ -225,7 +207,7 @@ export default {
     viewSatMarker() {
       let dt = new Date();
       this.satellite.setDate(dt);
-      this.satellite.refresh()
+      this.satellite.calcOrbit()
 
       var markerOptions = {
         map: this.gmap,
@@ -242,7 +224,7 @@ export default {
     moveSatMarker() {
       let dt = new Date();
       this.satellite.setDate(dt);
-      this.satellite.refresh()
+      this.satellite.calcOrbit()
       this.satMarker.setPosition(new google.maps.LatLng(this.satellite.lat, this.satellite.lon));
     },
 
@@ -322,7 +304,7 @@ export default {
       const interval = this.markerConfig[this.gmap.getZoom()];
       for(let ii = 0; ii < 10000; ii++){
         this.satellite.setDate(dt);
-        this.satellite.refresh()
+        this.satellite.calcOrbit()
 
         // 地図の表示範囲内の場合にのみラベルを表示する
         let label = null;

@@ -1,3 +1,5 @@
+"use strict";
+
 const TinyOrbit = {
     util: {}
 };
@@ -27,6 +29,7 @@ TinyOrbit.util.convGmst = function(date) {
     const ut1 = (julianDay - 2451545.0) / TinyOrbit.JULIAN_CENTURY;
 
     // GMST = 18h 41m 50.54841s + 8640184.812866s * UT1 + 0.093104s * UT1 ^ 2 - 0.0000062s * (UT1 ^ 3)
+    // お決まりらしい
     let gmst = 67310.54841 + ((876600.0 * 3600 + 8640184.812866) * ut1) + (0.093104 * ut1 * ut1) - (0.0000062 * (ut1 * ut1 * ut1));
     gmst = (gmst * (Math.PI/180) / 240.0) % (Math.PI*2);
     gmst += (gmst < 0) ? Math.PI*2 : 0;
@@ -35,42 +38,31 @@ TinyOrbit.util.convGmst = function(date) {
 };
 
 /**
- *Initializes a Satellite object (requires Google Maps API3)
- * @class
+ * Satelliteクラス
  */
 TinyOrbit.Satellite = function(tle) {
-    "use strict";
-    this.tle = tle;
-    this.position = null;
     this.orbit = null;
     this.date = null;
     this.orbit = new TinyOrbit.Orbit(tle);
 
-    // refresh
-    this.refresh();
+    // 軌道の再計算
+    this.calcOrbit();
 };
 
 /**
- * Set a Date instance or null to use the current datetime.
- * Call refresh() to update the position afterward.
- * @param   {Date} date - An instance of Date
+ * 日付をセットする
  */
 TinyOrbit.Satellite.prototype.setDate = function(date) {
     this.date = date;
 };
 
 /**
- *Recalculates the position and updates the markers
+ * 軌道を計算する
  */
-TinyOrbit.Satellite.prototype.refresh = function() {
-    if(this.orbit === null) {
-        return;
-    }
-
-    this.orbit.setDate(this.date);
-    this.orbit.calc();
-    this.lat = this.orbit.getLat();
-    this.lon = this.orbit.getLon();
+TinyOrbit.Satellite.prototype.calcOrbit = function() {
+    const latlon = this.orbit.calc(this.date);
+    this.lat = latlon[0];
+    this.lon = latlon[1];
 };
 
 /**
@@ -88,7 +80,6 @@ TinyOrbit.TLE = function (tleText) {
  * @param {string} tleText - A TLE string of 3 lines
  */
 TinyOrbit.TLE.prototype.parse = function (tleText) {
-    "use strict";
     const lines = tleText.split("\n");
 
     // Line1・この軌道要素の元期 (年のラスト2桁)
@@ -147,9 +138,8 @@ TinyOrbit.TLE.prototype.dtime = function(date) {
  * @param  {orbit.TLE} tleObj - An instance of TinyOrbit.TLE
  */
 TinyOrbit.Orbit = function(tleObj) {
-    "use strict";
     this.tle = tleObj;
-    this.date = null;
+    // this.date = null;
 
     // init constants
     this.ck2 = 5.413080e-4;
@@ -277,12 +267,10 @@ TinyOrbit.Orbit = function(tleObj) {
 };
 
 /**
- *calculates position and velocity vectors based date set on the Orbit object
- * Orbitに設定された日付に基づいて緯度経度を計算する
+ * 設定された日付に基づいて緯度経度を計算する
  */
-TinyOrbit.Orbit.prototype.calc = function() {
-    "use strict";
-    const date = (this.date === null) ? new Date() : this.date;
+TinyOrbit.Orbit.prototype.calc = function(inDate) {
+    const date = (inDate === null) ? new Date() : inDate;
 
     // 日付とTLEのエポックとの差を分単位で取得する
     const tsince = this.tle.dtime(date);
@@ -473,31 +461,8 @@ TinyOrbit.Orbit.prototype.calc = function() {
     }
     latitude  = (latitude / this.torad);
 
-    /**
-     * latitude in degrees
-     * 緯度
-     * @type {float}
-     * @readonly
-     */
-    this.latitude = latitude;
-
-    /**
-     * longtitude in degrees
-     * 経度
-     * @type {float}
-     * @readonly
-     */
-    this.longitude = longitude;
+    return [latitude, longitude];
 };
-
-/**
- * Change the datetime, or null for to use current
- * @param {Date} date
- */
-TinyOrbit.Orbit.prototype.setDate = function(date) {
-    this.date = date;
-};
-
 
 TinyOrbit.Orbit.prototype.getLat = function () {
     return this.latitude;
