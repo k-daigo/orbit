@@ -8,6 +8,30 @@ TinyOrbit.ONEDAY_MS = 1000 * 60 * 60 * 24;      // 1日のミリ秒
 TinyOrbit.JULIAN_DAY_DELTA = 2440587.5;         // ユリウス通日に変換する為の日数（4712年1月1日の正午（世界時）からの日数）
 TinyOrbit.JULIAN_CENTURY = 36525;               // 1ユリウス世紀（36525日）
 
+// 地球の赤道半径（a）（赤道面の半径）
+TinyOrbit.EARTH_RADIUS = 6378.137;
+// 地球の極半径（b）（地心から北極点、南極点までの半径）
+TinyOrbit.EARTH_INNER_RADIUS = 6356.7523142;
+
+// 2/3
+TinyOrbit.TOTHRD = 0.66666667;
+TinyOrbit.CK2 = 5.413080e-4;
+TinyOrbit.CK4 = 0.62098875e-6;
+TinyOrbit.E6A = 1.0e-6;
+TinyOrbit.QOMS2T = 1.88027916e-9;
+TinyOrbit.S = 1.01222928;
+TinyOrbit.TORAD = Math.PI / 180;            // Radian変換
+TinyOrbit.XJ3 = -0.253881e-5;
+TinyOrbit.XKE = 0.743669161e-1;
+TinyOrbit.XKMPER = TinyOrbit.EARTH_RADIUS; // 地球半径
+// TinyOrbit.xflat = 0.00335281066; // WGS-84 flattening
+// TinyOrbit.xminpday = 1440.0;
+TinyOrbit.AE = 1.0;
+// TinyOrbit.pi = Math.PI;
+TinyOrbit.PIO2 = Math.PI / 2;
+TinyOrbit.TWOPI = 2 * Math.PI;
+// TinyOrbit.x3pio2 = 3 * TinyOrbit.PIO2;
+
 /**
  * 指定日付のユリウス通日を返す
  * ※ユリウス通日（西暦 -4712年1月1日の正午（世界時）からの日数）
@@ -76,8 +100,7 @@ TinyOrbit.TLE = function (tleText) {
 };
 
 /**
- * Parses TLE string and sets the proporties
- * @param {string} tleText - A TLE string of 3 lines
+ * TLEのパース（必要な項目だけ収集）
  */
 TinyOrbit.TLE.prototype.parse = function (tleText) {
     const lines = tleText.split("\n");
@@ -141,133 +164,112 @@ TinyOrbit.Orbit = function(tleObj) {
     this.tle = tleObj;
     // this.date = null;
 
-    // init constants
-    this.ck2 = 5.413080e-4;
-    this.ck4 = 0.62098875e-6;
-    this.e6a = 1.0e-6;
-    this.qoms2t = 1.88027916e-9;
-    this.s = 1.01222928;
-    this.xj3 = -0.253881e-5;
-    this.xke = 0.743669161e-1;
-    this.xkmper = 6378.137; // Earth's radius WGS-84
-    this.xflat = 0.00335281066; // WGS-84 flattening
-    this.xminpday = 1440.0;
-    this.ae = 1.0;
-    this.pi = Math.PI;
-    this.pio2 = this.pi / 2;
-    this.twopi = 2 * this.pi;
-    this.x3pio2 = 3 * this.pio2;
-
-    this.torad = this.pi/180;
-    this.tothrd = 0.66666667;
-
-    this.xinc = this.tle.inclination * this.torad;
-    this.xnodeo = this.tle.rightAscension * this.torad;
+    this.xinc = this.tle.inclination * TinyOrbit.TORAD;
+    this.xnodeo = this.tle.rightAscension * TinyOrbit.TORAD;
     this.eo = this.tle.eccentricity;
-    this.omegao  = this.tle.argumentOfPerigee * this.torad;
+    this.omegao = this.tle.argumentOfPerigee * TinyOrbit.TORAD;
 
     // degreeである平均近点角（Mean Anomaly）をradianに変換
-    this.xmo = this.tle.meanAnomaly * this.torad;
+    this.xmo = this.tle.meanAnomaly * TinyOrbit.TORAD;
 
-    this.xno = this.tle.meanMotion * this.twopi / 1440.0;
+    this.xno = this.tle.meanMotion * TinyOrbit.TWOPI / 1440.0;
     this.bstar = this.tle.bstar;
+
+    // Spacetrack Report No.3 ここから
 
     // recover orignal mean motion (xnodp) and semimajor axis (adop)
     // 元の平均運動（xnodp）と半長軸（adop）を復元する
-    const a1 = Math.pow(this.xke / this.xno, this.tothrd);
-    const cosio = Math.cos(this.xinc);
-    const theta2 = cosio*cosio;
-    const x3thm1 = 3.0 * theta2 - 1;
+    const a1 = Math.pow(TinyOrbit.XKE / this.xno, TinyOrbit.TOTHRD);
+    this.cosio = Math.cos(this.xinc);
+    const theta2 = this.cosio * this.cosio;
+    this.x3thm1 = 3.0 * theta2 - 1;
     const eosq = this.eo * this.eo;
     const betao2= 1.0 - eosq;
     const betao = Math.sqrt(betao2);
-    const del1 = 1.5 * this.ck2 * x3thm1 / (a1*a1 * betao*betao2);
-    const ao = a1 * (1 - del1 * ((1.0/3.0) + del1 * (1.0 + (134.0/81.0) * del1)));
-    const delo = 1.5 * this.ck2 * x3thm1/(ao * ao * betao * betao2);
-    const xnodp = this.xno/(1.0 + delo); //original_mean_motion
-    const aodp = ao / (1.0 - delo); //semi_major_axis
+    const del1 = 1.5 * TinyOrbit.CK2 * this.x3thm1 / (a1*a1 * betao*betao2);
+    const ao = a1 * (1 - del1 * (0.5 * TinyOrbit.TOTHRD + del1 * (1 + 134 / 81 * del1)));
+    const delo = 1.5 * TinyOrbit.CK2 * this.x3thm1 / (ao * ao * betao * betao2);
+    this.xnodp = this.xno / (1.0 + delo);      // 平均運動
+    this.aodp = ao / (1.0 - delo);             // 軌道長半径
 
     // initialization
-    this.isimp = ((aodp*(1.0-this.eo)/this.ae) < (220.0/this.xkmper+this.ae)) ? 1 : 0;
+    // for perigee less than 220 kilometers, the isimp flag is set and
+    // the equations are truncated to linear variation in sqrt a and
+    // quadratic variation in mean anomaly.also, the c3 term, the
+    // delta omega term, and the delta m term are dropped.
+    this.isimp = 0;
+    if ((this.aodp * (1.0 - this.eo) / TinyOrbit.AE) < (220.0 / TinyOrbit.XKMPER + TinyOrbit.AE)) {
+        this.isimp = 1;
+    }
 
-    let s4 = this.s;
-    let qoms24 = this.qoms2t;
-    const perige = (aodp * (1.0-this.eo) - this.ae) * this.xkmper;
+    let s4 = TinyOrbit.S;
+    let qoms24 = TinyOrbit.QOMS2T;
+    const perige = (this.aodp * (1.0 - this.eo) - TinyOrbit.AE) * TinyOrbit.XKMPER;
     if (perige < 156.0){
         s4 = perige - 78.0;
-        if (perige <= 98.0){
-          s4 = 20.0;
+        if (perige > 98.0){
+            qoms24 = ((120.0 - s4) * TinyOrbit.AE / TinyOrbit.XKMPER)**4;
+            s4 = s4 / TinyOrbit.XKMPER + TinyOrbit.AE;
         } else {
-          qoms24 = Math.pow(((120.0 - s4)*this.ae/this.xkmper), 4);
-          s4 = s4/this.xkmper+this.ae;
+            s4 = 20.0;
         }
     }
-    const pinvsq = 1.0/(aodp * aodp * betao2 * betao2);
-    const tsi = 1.0/(aodp - s4);
-    const eta = aodp * this.eo * tsi;
-    const etasq = eta * eta;
-    const eeta = this.eo * eta;
+    const pinvsq = 1.0 / (this.aodp * this.aodp * betao2 * betao2);
+    const tsi = 1.0 / (this.aodp - s4);
+    this.eta = this.aodp * this.eo * tsi;
+    const etasq = this.eta * this.eta;
+    const eeta = this.eo * this.eta;
     const psisq = Math.abs(1.0 - etasq);
-    const coef = qoms24 * Math.pow(tsi,4);
-    const coef1 = coef/Math.pow(psisq,3.5);
+    const coef = qoms24 * tsi**4;
+    const coef1 = coef / psisq**3.5;
 
-    const c2 = coef1 * xnodp * (aodp * (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) + 0.75 * this.ck2 * tsi/psisq * x3thm1 * (8.0 + 3.0 * etasq * (8.0 + etasq)));
-    const c1 = this.bstar * c2;
-    const sinio = Math.sin(this.xinc);
-    const a3ovk2 = -this.xj3/this.ck2 * Math.pow(this.ae,3);
-    const c3 = coef * tsi * a3ovk2 * xnodp * this.ae * sinio/this.eo;
-    const x1mth2 = 1.0 - theta2;
-    const c4 = 2.0 * xnodp * coef1 * aodp * betao2 * (eta * (2.0 + 0.5 * etasq) + this.eo * (0.5 + 2.0 * etasq) - 2.0 * this.ck2 * tsi/(aodp * psisq) * (-3.0 * x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) * Math.cos((2.0 * this.omegao))));
-    this.c5 = 2.0 * coef1 * aodp * betao2 * (1.0 + 2.75 * (etasq + eeta) + eeta * etasq);
+    const c2 = coef1 * this.xnodp * (this.aodp * (1.0 + 1.5 * etasq + eeta * (4.0 + etasq))
+        + 0.75 * TinyOrbit.CK2 * tsi / psisq * this.x3thm1 * (8.0 + 3.0 * etasq * (8.0 + etasq)));
+    this.c1 = this.bstar * c2;
+    this.sinio = Math.sin(this.xinc);
+    const a3ovk2 = -TinyOrbit.XJ3 / TinyOrbit.CK2 * TinyOrbit.AE**3;
+    const c3 = coef * tsi * a3ovk2 * this.xnodp * TinyOrbit.AE * this.sinio / this.eo;
+    this.x1mth2 = 1.0 - theta2;
+    this.c4 = 2.0 * this.xnodp * coef1 * this.aodp * betao2 * (this.eta * (2.0 + 0.5 * etasq) + this.eo * (0.5 + 2.0 * etasq)
+        - 2.0 * TinyOrbit.CK2 * tsi / (this.aodp * psisq) * (-3.0 * this.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta))
+        + 0.75 * this.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) * Math.cos((2.0 * this.omegao))));
+    this.c5 = 2.0 * coef1 * this.aodp * betao2 * (1.0 + 2.75 * (etasq + eeta) + eeta * etasq);
 
     const theta4 = theta2 * theta2;
-    const temp1 = 3.0 * this.ck2 * pinvsq * xnodp;
-    const temp2 = temp1 * this.ck2 * pinvsq;
-    const temp3 = 1.25 * this.ck4 * pinvsq * pinvsq * xnodp;
-    this.xmdot = xnodp + 0.5 * temp1 * betao * x3thm1 + 0.0625 * temp2 * betao * (13.0 - 78.0 * theta2 + 137.0 * theta4);
+    const temp1 = 3.0 * TinyOrbit.CK2 * pinvsq * this.xnodp;
+    const temp2 = temp1 * TinyOrbit.CK2 * pinvsq;
+    const temp3 = 1.25 * TinyOrbit.CK4 * pinvsq * pinvsq * this.xnodp;
+    this.xmdot = this.xnodp + 0.5 * temp1 * betao * this.x3thm1 + 0.0625 * temp2 * betao * (13.0 - 78.0 * theta2 + 137.0 * theta4);
     const x1m5th = 1.0 - 5.0 * theta2;
     this.omgdot = -0.5 * temp1 * x1m5th + 0.0625 * temp2 * (7.0 - 114.0 * theta2 + 395.0 * theta4) + temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4);
-    const xhdot1 = -temp1 * cosio;
-    this.xnodot = xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) + 2.0 * temp3 * (3.0 - 7.0 * theta2)) * cosio;
+    const xhdot1 = -temp1 * this.cosio;
+    this.xnodot = xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) + 2.0 * temp3 * (3.0 - 7.0 * theta2)) * this.cosio;
     this.omgcof = this.bstar * c3 * Math.cos(this.omegao);
-    this.xmcof = -this.tothrd * coef * this.bstar * this.ae/eeta;
-    this.xnodcf = 3.5 * betao2 * xhdot1 * c1;
-    this.t2cof = 1.5 * c1;
-    this.xlcof = 0.125 * a3ovk2 * sinio * (3.0 + 5.0 * cosio)/(1.0 + cosio);
-    this.aycof = 0.25 * a3ovk2 * sinio;
-    this.delmo = Math.pow((1.0 + eta * Math.cos(this.xmo)),3);
+    this.xmcof = -TinyOrbit.TOTHRD * coef * this.bstar * TinyOrbit.AE / eeta;
+    this.xnodcf = 3.5 * betao2 * xhdot1 * this.c1;
+    this.t2cof = 1.5 * this.c1;
+    this.xlcof = 0.125 * a3ovk2 * this.sinio * (3.0 + 5.0 * this.cosio) / (1.0 + this.cosio);
+    this.aycof = 0.25 * a3ovk2 * this.sinio;
+    this.delmo = (1.0 + this.eta * Math.cos(this.xmo))**3;
     this.sinmo = Math.sin(this.xmo);
     this.x7thm1 = 7.0 * theta2 - 1.0;
 
-    let d2, d3, d4;
     if (this.isimp != 1){
-        const c1sq = c1 * c1;
-        d2 = 4.0 * aodp * tsi * c1sq;
-        const temp = d2 * tsi * c1/3.0;
-        d3 = (17.0 * aodp + s4) * temp;
-        d4 = 0.5 * temp * aodp * tsi * (221.0 * aodp + 31.0 * s4) * c1;
-        this.t3cof = d2 + 2.0 * c1sq;
-        this.t4cof = 0.25 * (3.0 * d3 + c1 * (12.0 * d2 + 10.0 * c1sq));
-        this.t5cof = 0.2 * (3.0 * d4 + 12.0 * c1 * d3 + 6.0 * d2 * d2 + 15.0 * c1sq * (2.0 * d2 + c1sq));
+        const c1sq = this.c1 * this.c1;
+        this.d2 = 4.0 * this.aodp * tsi * c1sq;
+        const temp = this.d2 * tsi * this.c1 / 3.0;
+        this.d3 = (17.0 * this.aodp + s4) * temp;
+        this.d4 = 0.5 * temp * this.aodp * tsi * (221.0 * this.aodp + 31.0 * s4) * this.c1;
+        this.t3cof = this.d2 + 2.0 * c1sq;
+        this.t4cof = 0.25 * (3.0 * this.d3 + this.c1 * (12.0 * this.d2 + 10.0 * c1sq));
+        this.t5cof = 0.2 * (3.0 * this.d4 + 12.0 * this.c1 * this.d3 + 6.0 * this.d2 * this.d2 + 15.0 * c1sq * (2.0 * this.d2 + c1sq));
     }
-
-    // set variables that are needed in the calculate() routine
-    this.aodp = aodp;
-    this.c1 = c1;
-    this.c4 = c4;
-    this.cosio = cosio;
-    this.d2 = d2;
-    this.d3 = d3;
-    this.d4 = d4;
-    this.eta = eta;
-    this.sinio = sinio;
-    this.x3thm1 = x3thm1;
-    this.x1mth2 = x1mth2;
-    this.xnodp = xnodp;
+    this.isimp = 0
 };
 
 /**
- * 設定された日付に基づいて緯度経度を計算する
+ * 指定日付の緯度経度を計算する
+ * 「Spacetrack Report No.3」のSGP4の記載の内、日時によって値が変動する処理を計算する
  */
 TinyOrbit.Orbit.prototype.calc = function(inDate) {
     const date = (inDate === null) ? new Date() : inDate;
@@ -276,8 +278,6 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
     const tsince = this.tle.dtime(date);
 
     // update for secular gravity and atmospheric drag
-    // 長期重力と大気抵抗の更新
-
     // 平均近点角(のRadian) + (xxxx + エポックとの差)
     const xmdf = this.xmo + this.xmdot * tsince;
     const omgadf = this.omegao + this.omgdot * tsince;
@@ -305,12 +305,12 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
     }
 
     // 軌道長半径を
-    let a = this.aodp * tempa * tempa;
+    let a = this.aodp * (tempa**2);
     // 離心率
     const e = this.eo - tempe;
     const xl = xmp + omega + xnode + this.xnodp * templ;
     const beta = Math.sqrt(1.0 - e*e);
-    const xn = this.xke/Math.pow(a,1.5);
+    const xn = TinyOrbit.XKE / Math.pow(a,1.5);
 
     // long period periodics
     // 長期間の定期刊行物
@@ -334,8 +334,8 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
         temp4 = ayn * cosepw;
         temp5 = axn * cosepw;
         temp6 = ayn * sinepw;
-        const epw = (capu - temp4 + temp3 - temp2)/(1.0 - temp5 - temp6) + temp2;
-        if (Math.abs(epw - temp2) <= this.e6a){
+        const epw = (capu - temp4 + temp3 - temp2) / (1.0 - temp5 - temp6) + temp2;
+        if (Math.abs(epw - temp2) <= TinyOrbit.E6A){
             break;
         }
         temp2 = epw;
@@ -350,8 +350,8 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
     const pl = a * temp;
     const r = a * (1.0 - ecose);
     let temp1 = 1.0/r;
-    const rdot = this.xke * Math.sqrt(a) * esine * temp1;
-    const rfdot = this.xke * Math.sqrt(pl) * temp1;
+    const rdot = TinyOrbit.XKE * Math.sqrt(a) * esine * temp1;
+    const rfdot = TinyOrbit.XKE * Math.sqrt(pl) * temp1;
     temp2 = a * temp1;
     const betal = Math.sqrt(temp);
     temp3 = 1.0/(1.0 + betal);
@@ -362,7 +362,7 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
     const sin2u = 2.0 * sinu * cosu;
     const cos2u = 2.0 * cosu * cosu - 1.0;
     temp = 1.0/pl;
-    temp1 = this.ck2 * temp;
+    temp1 = TinyOrbit.CK2 * temp;
     temp2 = temp1 * temp;
 
     // update for short periodics
@@ -392,74 +392,57 @@ TinyOrbit.Orbit.prototype.calc = function(inDate) {
     const vz = sinik * cosuk;
 
     // position and velocity in km
-    // kmでの位置と速度
-    this.x = (rk * ux) * this.xkmper;
-    this.y = (rk * uy) * this.xkmper;
-    this.z = (rk * uz) * this.xkmper;
-    this.xdot = (rdotk * ux + rfdotk * vx) * this.xkmper;
-    this.ydot = (rdotk * uy + rfdotk * vy) * this.xkmper;
-    this.zdot = (rdotk * uz + rfdotk * vz) * this.xkmper;
+    // 位置と速度
+    this.x = rk * ux;
+    this.y = rk * uy;
+    this.z = rk * uz;
+    this.xdot = rdotk * ux + rfdotk * vx;
+    this.ydot = rdotk * uy + rfdotk * vy;
+    this.zdot = rdotk * uz + rfdotk * vz;
 
-    /**
-     * orbit period in seconds
-     * 秒単位の軌道周期
-     * @type {float}
-     * @readonly
-     */
-    this.period = this.twopi * Math.sqrt(Math.pow(this.aodp * this.xkmper , 3) / 398600.4);
+    // Spacetrack Report No.3 はここまで
 
-    /**
-     * velocity in km per second
-     * 速度（km /秒）
-     * @type {float}
-     * @readonly
-     */
-    this.velocity = Math.sqrt(this.xdot*this.xdot + this.ydot*this.ydot + this.zdot*this.zdot) / 60; // kmps
+    // kmに変換
+    this.x *= TinyOrbit.XKMPER;
+    this.y *= TinyOrbit.XKMPER;
+    this.z *= TinyOrbit.XKMPER;
+    this.xdot *= TinyOrbit.XKMPER;
+    this.ydot *= TinyOrbit.XKMPER;
+    this.zdot *= TinyOrbit.XKMPER;
 
-    // lat, lon and altitude
-    // 緯度、経度、高度
-    // based on http://www.celestrak.com/columns/v02n03/
+    // 緯度、経度
+    // 参考）http://www.celestrak.com/columns/v02n03/
 
-    // 地球半径
-    a = 6378.137;
-    // 地球内側半径
-    const b = 6356.7523142;
     // 
     const R = Math.sqrt(this.x * this.x + this.y * this.y);
-    // 
-    const f = (a - b) / a;
-    // グリニッジ平均恒星時
+
+    // 地球の扁平率（f）
+    const f = (TinyOrbit.EARTH_RADIUS - TinyOrbit.EARTH_INNER_RADIUS) / TinyOrbit.EARTH_RADIUS;
+
+    // グリニッジ平均恒星時（θ）
     const gmst = TinyOrbit.util.convGmst(date);
 
-    const e2 = ((2*f) - (f*f));
     // 緯度経度
-    let longitude = Math.atan2(this.y, this.x) - gmst;
-    let latitude = Math.atan2(this.z, R);
+    let lngRad = Math.atan2(this.y, this.x) - gmst;
+    let latRad = Math.atan2(this.z, R);
 
-    let C;
-    let iterations = 20;
-    while(iterations--) {
-        C = 1 / Math.sqrt( 1 - e2*(Math.sin(latitude)*Math.sin(latitude)) );
-        latitude = Math.atan2 (this.z + (a*C*e2*Math.sin(latitude)), R);
+    // 
+    const e2 = (2 * f) - (f ** 2);
+
+    // 衛星のサブポイントの測地緯度を計算（n回ループして近似値を取る）
+    for (let ii = 0; ii < 20; ii++) {
+        const C = 1 / Math.sqrt(1 - e2 * (Math.sin(latRad)**2));
+        latRad = Math.atan2(this.z + (TinyOrbit.EARTH_INNER_RADIUS * C * e2 * Math.sin(latRad)), R);
     }
 
-    /**
-     * Altitude in kms
-     * 高度（km）
-     * @type {float}
-     * @readonly
-     */
-    this.altitude = (R/Math.cos(latitude)) - (a*C);
-
-    // convert from radii to degrees
-    // 半径から度に変換する
-    longitude  = (longitude / this.torad) % 360;
+    // RadianからDegree（度）に変換する
+    let longitude = (lngRad / TinyOrbit.TORAD) % 360;
     if (longitude > 180) {
         longitude = 360 - longitude;
     } else if(longitude < -180) {
         longitude = 360 + longitude;
     }
-    latitude  = (latitude / this.torad);
+    const latitude = latRad / TinyOrbit.TORAD;
 
     return [latitude, longitude];
 };
